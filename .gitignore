@@ -17,3 +17,7 @@ project/target/
 corpus/
 working/
 tmp
+
+# VIM
+*.swp
+*.swo   
