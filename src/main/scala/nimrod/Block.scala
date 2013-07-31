@@ -26,13 +26,13 @@ class Block(name : String, wf : Workflow) extends Task {
           throw new WorkflowException("Requirement not satisified " + req)
         }
       }
-      println("\033[0;32m[ " + wf.currentStep + x + " / " + wf.totalSteps + " ] Start: " + task + "\033[m")
+      println("[\033[0;32m " + wf.currentStep + x + " / " + wf.totalSteps + " \033[m] Start: " + task)
       val result = task.exec
       if(result != 0) {
-        println("\033[0;31m[ " + wf.currentStep + x + " / " + wf.totalSteps + " ] Failed: " + task + "\033[m")
+        println("[\033[0;31m " + wf.currentStep + x + " / " + wf.totalSteps + " \033[m] Failed: " + task)
         return result
       }
-      println("\033[0;32m[ " + wf.currentStep + x + " / " + wf.totalSteps + " ] Finished: " + task + "\033[m")
+      println("[\033[0;32m " + wf.currentStep + x + " / " + wf.totalSteps + " \033[m] Finished: " + task)
       x = (x + 1).toChar
     }    
     return 0

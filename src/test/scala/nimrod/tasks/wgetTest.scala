@@ -9,7 +9,7 @@ class wgetTest extends FlatSpec {
 
     wget("http://www.example.com") > "wgetTest" 
 
-    workflow.start
+    workflow.start(1)
 
     workflow.reset
 

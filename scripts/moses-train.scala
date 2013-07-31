@@ -14,6 +14,7 @@ val CDEC_DIR = System.getProperty("cdecDir","/home/jmccrae/cdec")
 //export IRSTLM=`pwd`/irstlm
 
 mkdir(WORKING + "/model").p
+mkdir(WORKING + "/imodel").p
 
 block("Prepare corpus " + l1) {
   gunzip("corpus/corpus-%s-%s.%s.gz" % (l1,l2,l1))
@@ -33,8 +34,6 @@ block("Clean corpus ") {
   Do(MOSES_DIR+"/mosesdecoder/scripts/training/clean-corpus-n.perl",
     "corpus/corpus-%s-%s.true" % (l1,l2),
     l1,l2,WORKING + "/corpus-%s-%s.clean" % (l1,l2),"1","80")
-  rm(("corpus/corpus-%s-%s.true.%s" % (l1,l2,l1)))
-  rm(("corpus/corpus-%s-%s.true.%s" % (l1,l2,l2)))
 }
 
 val WORKING_CORPUS = WORKING + "/corpus-%s-%s" % (l1,l2)
@@ -43,13 +42,15 @@ def buildLM(lm : String) = {
   block("Build language model for " + lm) {
     mkdir(WORKING + "/../lm").p
 
-    Do(MOSES_DIR+"/irstlm/bin/add-start-end-sh") < (WORKING_CORPUS + ".clean." + lm) > (WORKING_CORPUS + ".sb." + lm)
+    Do(MOSES_DIR+"/irstlm/bin/add-start-end.sh") < (WORKING_CORPUS + ".clean." + lm) > (WORKING_CORPUS + ".sb." + lm)
+
+    rm(WORKING + "/../lm/" + lm).ifexists
 
     Do(MOSES_DIR+"/irstlm/bin/build-lm.sh",
       "-i",WORKING_CORPUS + ".sb." + lm,
       "-t","tmp",
       "-p","-s","improved-kneser-ney",
-      "-o",WORKING + "/../lm/" + lm)
+      "-o",WORKING + "/../lm/" + lm).env("IRSTLM",MOSES_DIR+"/irstlm")
 
     Do (MOSES_DIR+"/irstlm/bin/compile-lm",
       "--text","yes",
@@ -65,8 +66,7 @@ def buildTranslationModel(WORKING : String, WORKING_CORPUS : String, LM_DIR : St
   block("Alignment") {
     Do(CDEC_DIR+"/corpus/paste-files.pl",
       WORKING_CORPUS + "." + l1,
-      WORKING_CORPUS + "." + l2,
-      WORKING_CORPUS + ".train")
+      WORKING_CORPUS + "." + l2) > (WORKING_CORPUS + ".train")
 
     Do(CDEC_DIR+"/word-aligner/fast_align",
       "-i",WORKING_CORPUS + ".train",
@@ -74,9 +74,10 @@ def buildTranslationModel(WORKING : String, WORKING_CORPUS : String, LM_DIR : St
 
     Do(CDEC_DIR+"/word-aligner/fast_align",
       "-i",WORKING_CORPUS + ".train",
-      "-d","-v","-o","-r") > (WORKING + "/%s-%s.fwd_align" % (l1,l2))
+      "-d","-v","-o","-r") > (WORKING + "/%s-%s.rev_align" % (l1,l2))
 
     Do(CDEC_DIR+"/utils/atools",
+      "-c","grow-diag-final-and",
       "-i",WORKING + "/%s-%s.fwd_align" % (l1,l2),
       "-j",WORKING + "/%s-%s.rev_align" % (l1,l2)) > (WORKING + "/model/aligned.grow-diag-final-and")
 
@@ -89,15 +90,16 @@ def buildTranslationModel(WORKING : String, WORKING_CORPUS : String, LM_DIR : St
       "-i",WORKING + "/%s-%s.rev_align" % (l1,l2)) > (WORKING + "/imodel/rev_align")
 
     Do(CDEC_DIR+"/utils/atools",
+      "-c","grow-diag-final-and",
       "-i",WORKING + "/imodel/fwd_align" % (l1,l2),
-      "-j",WORKING + "/imodel/rev_align" % (l1,l2)) > (WORKING + "/model/aligned.grow-diag-final-and")
+      "-j",WORKING + "/imodel/rev_align" % (l1,l2)) > (WORKING + "/imodel/aligned.grow-diag-final-and")
   }
 
   block("Phrase table generation") {
     val lmFile1 = new File(LM_DIR+l1).getCanonicalPath()
     Do(MOSES_DIR+"/mosesdecoder/scripts/training/train-model.perl",
-      "-do-steps","4-9","-root-dir","WORKING",
-      "-corpus",WORKING_CORPUS + ".clean",
+      "-do-steps","4-9","-root-dir",WORKING,
+      "-corpus",WORKING_CORPUS,
       "-f",l1,"-e",l2,
       "-alignment","grow-diag-final-and",
       "-reordering","msd-bidirectional-fe",
@@ -105,12 +107,13 @@ def buildTranslationModel(WORKING : String, WORKING_CORPUS : String, LM_DIR : St
       "-external-bin-dir",MOSES_DIR + "/tools")
     val lmFile2 = new File(LM_DIR+l2).getCanonicalPath()
     Do(MOSES_DIR+"/mosesdecoder/scripts/training/train-model.perl",
-      "-do-steps","4-9","-root-dir","WORKING",
-      "-corpus",WORKING_CORPUS + ".clean",
+      "-do-steps","4-9","-root-dir",WORKING,
+      "-corpus",WORKING_CORPUS,
       "-f",l2,"-e",l1,
       "-alignment","grow-diag-final-and",
       "-reordering","msd-bidirectional-fe",
       "-lm","0:3:"+lmFile2+":8",
+      "-model-dir",WORKING + "/imodel",
       "-external-bin-dir",MOSES_DIR + "/tools")
   }
 }

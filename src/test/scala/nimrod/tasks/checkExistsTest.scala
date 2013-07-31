@@ -10,7 +10,7 @@ class checkExistsTest extends FlatSpec with matchers.ShouldMatchers {
 
     checkExists("no-such-file")
 
-    evaluating { workflow.start } should produce[RuntimeException]
+    evaluating { workflow.start(1) } should produce[RuntimeException]
   }
 
   "checkExists" should "not fail if the file exists" in {
@@ -18,7 +18,7 @@ class checkExistsTest extends FlatSpec with matchers.ShouldMatchers {
 
     checkExists("build.sbt")
 
-    workflow.start
+    workflow.start(1)
   }
 
 }

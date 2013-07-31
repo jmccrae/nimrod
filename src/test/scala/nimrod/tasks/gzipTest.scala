@@ -23,7 +23,7 @@ class gzipTest extends FlatSpec {
     gunzip(f+".gz")
     checkExists(f)
 
-    workflow.start
+    workflow.start(1)
 
   }
 }

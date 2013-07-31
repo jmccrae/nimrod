@@ -3,11 +3,26 @@ package nimrod
 import com.twitter.util.Eval
 
 object Main {
-  def main(args : Array[String]) {
+  private def printUsage = {
+    System.err.println("Usage: ./nimrod script.scala [args]")
+    System.exit(-1)
+  }
+
+  def main(_args : Array[String]) {
+    var args = _args.toList
     if(args.length < 1) {
-      System.err.println("Usage: ./nimrod script.scala [args]")
-      System.exit(-1)
+      printUsage
     }    
+    var beginStep = 1
+    while(args(0).startsWith("-")) {
+      args(0) match {
+        case "-s" => {
+          beginStep = args(1).toInt
+          args = args.drop(2)
+        }
+        case _ => printUsage
+      }
+    }
     val programSB = new StringBuilder()
     val ln = System.getProperty("line.separator")
     programSB.append("import nimrod._ ; ")
@@ -18,7 +33,7 @@ object Main {
     for(line <- io.Source.fromFile(args(0)).getLines) {
       programSB.append(line + ln)
     }
-    programSB.append("workflow.start" + ln)
+    programSB.append("workflow.start(" + beginStep + ")" + ln)
     try {
       new Eval()(programSB.toString())
     } catch {

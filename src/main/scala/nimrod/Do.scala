@@ -6,6 +6,7 @@ class Do(args : List[String]) extends Task {
   private var stdin : Option[File] = None
   private var stdout : Option[File] = None
   private var stderr : Option[File] = None
+  private val envs = collection.mutable.Map[String,String]()
 
   private val cmdFile = new File(args(0))
   if(cmdFile.exists) {
@@ -23,6 +24,9 @@ class Do(args : List[String]) extends Task {
 
   override def exec = {
     val pb = new ProcessBuilder(args:_*)
+    for((key,value) <- envs) {
+      pb.environment().put(key,value)
+    }
     val proc = pb.start()
   //  pb.inheritIO()
     stdin match {
@@ -70,6 +74,9 @@ class Do(args : List[String]) extends Task {
   def err(path : String) =  { 
     stderr = Some(new File(path)) 
     this 
+  }
+  def env(key : String, value : String) {
+    envs.put(key,value)
   }
   
   override def toString = args.mkString(" ")

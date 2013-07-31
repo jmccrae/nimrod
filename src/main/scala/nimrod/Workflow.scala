@@ -43,24 +43,24 @@ class Workflow(val name : String) {
     }
   }
 
-  def start {
+  def start(step : Int) {
     if(tasks.isEmpty) {
       throw new WorkflowException("No tasks defined")
     }
-    currentStep = 1
-    for(task <- tasks.reverse) {      
+    currentStep = step
+    for(task <- tasks.reverse.drop(step-1)) {      
       for(req <- task.requirements) {
         if(!req.validInput) {
           throw new WorkflowException("Requirement not satisified " + req)
         }
       }
       
-      println("\033[0;32m[ " + (currentStep) + " / " + (tasks.size) + " ] Start: " + task + "\033[m")
+      println("[\033[0;32m " + (currentStep) + " / " + (tasks.size) + " \033[m] Start: " + task)
       if(task.exec != 0) {
-        println("\033[0;31m[ " + (currentStep) + " / " + (tasks.size) + " ] Failed: " + tasks + "\033[m")
+        println("[\033[0;31m " + (currentStep) + " / " + (tasks.size) + " \033[m] Failed: " + task)
         return
       }
-      println("\033[0;32m[ " + (currentStep) + " / " + (tasks.size) + " ] Finished: " + task + "\033[m")
+      println("[\033[0;32m " + (currentStep) + " / " + (tasks.size) + " \033[m] Finished: " + task)
       currentStep += 1
     }    
   }

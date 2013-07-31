@@ -3,13 +3,15 @@ import nimrod._
 import java.io.File
 
 class rm(file : File) extends Task {
-  override def exec = if(file.delete()) {
+  private var e = false
+  override def exec = if(file.delete() || e) {
     0
   } else {
     -1
   }
   requires(file)
 
+  def ifexists { e = true }
   override def toString = "rm " + file
 }
 
