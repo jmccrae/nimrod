@@ -9,6 +9,7 @@ class ThreadPool(nThreads : Int, action : Int => Block) extends Task {
     val success = collection.mutable.Map[Int,Boolean]()
     val tpe = new ThreadPoolExecutor(nThreads,nThreads,10,TimeUnit.SECONDS,new SynchronousQueue[Runnable]())
     for(i <- 1 to nThreads) {
+      println("Start head " + i)
       val task = new Runnable() {
         def run = {
           if(action(i).exec != 0) {

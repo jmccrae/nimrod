@@ -13,33 +13,33 @@ val CDEC_DIR = System.getProperty("cdecDir","/home/jmccrae/cdec")
 
 //export IRSTLM=`pwd`/irstlm
 
-mkdir(WORKING + "/model").p
-mkdir(WORKING + "/imodel").p
+mkdir(WORKING).p
+mkdir(WORKING).p
 
-block("Prepare corpus " + l1) {
+//block("Prepare corpus " + l1) {
   gunzip("corpus/corpus-%s-%s.%s.gz" % (l1,l2,l1))
   Do(MOSES_DIR+"/mosesdecoder/scripts/tokenizer/tokenizer.perl","-l",l1) < ("corpus/corpus-%s-%s.%s" % (l1,l2,l1)) > ("corpus/corpus-%s-%s.tok.%s" % (l1,l2,l1))
   checkExists(MOSES_DIR+"/truecaser/truecase."+l1)
   Do(MOSES_DIR+"/mosesdecoder/scripts/recaser/truecase.perl","--model",MOSES_DIR+"/truecaser/truecase."+l1) < ("corpus/corpus-%s-%s.tok.%s" % (l1,l2,l1)) > ("corpus/corpus-%s-%s.true.%s" % (l1,l2,l1))
-}
+//}
 
-block("Prepare corpus " + l2) {
+//block("Prepare corpus " + l2) {
   gunzip("corpus/corpus-%s-%s.%s.gz" % (l1,l2,l2))
   Do(MOSES_DIR+"/mosesdecoder/scripts/tokenizer/tokenizer.perl","-l",l2) < ("corpus/corpus-%s-%s.%s" % (l1,l2,l2)) > ("corpus/corpus-%s-%s.tok.%s" % (l1,l2,l2))
   checkExists(MOSES_DIR+"/truecaser/truecase."+l2)
   Do(MOSES_DIR+"/mosesdecoder/scripts/recaser/truecase.perl","--model",MOSES_DIR+"/truecaser/truecase."+l2) < ("corpus/corpus-%s-%s.tok.%s" % (l1,l2,l2)) > ("corpus/corpus-%s-%s.true.%s" % (l1,l2,l2))
-}
+//}
 
-block("Clean corpus ") {
+//block("Clean corpus ") {
   Do(MOSES_DIR+"/mosesdecoder/scripts/training/clean-corpus-n.perl",
     "corpus/corpus-%s-%s.true" % (l1,l2),
     l1,l2,WORKING + "/corpus-%s-%s.clean" % (l1,l2),"1","80")
-}
+//}
 
 val WORKING_CORPUS = WORKING + "/corpus-%s-%s" % (l1,l2)
 
 def buildLM(lm : String) = {
-  block("Build language model for " + lm) {
+ // block("Build language model for " + lm) {
     mkdir(WORKING + "/../lm").p
 
     Do(MOSES_DIR+"/irstlm/bin/add-start-end.sh") < (WORKING_CORPUS + ".clean." + lm) > (WORKING_CORPUS + ".sb." + lm)
@@ -56,14 +56,18 @@ def buildLM(lm : String) = {
       "--text","yes",
       WORKING + "/../lm/"+lm+".gz",
       WORKING + "/../lm/"+lm)
-  }
+  //}
 }  
 
 buildLM(l1)
 buildLM(l2)
 
 def buildTranslationModel(WORKING : String, WORKING_CORPUS : String, LM_DIR : String) = {
-  block("Alignment") {
+  mkdir(WORKING + "/model").p
+
+  mkdir(WORKING + "/imodel").p
+
+//block("Alignment") {
     Do(CDEC_DIR+"/corpus/paste-files.pl",
       WORKING_CORPUS + "." + l1,
       WORKING_CORPUS + "." + l2) > (WORKING_CORPUS + ".train")
@@ -93,9 +97,9 @@ def buildTranslationModel(WORKING : String, WORKING_CORPUS : String, LM_DIR : St
       "-c","grow-diag-final-and",
       "-i",WORKING + "/imodel/fwd_align" % (l1,l2),
       "-j",WORKING + "/imodel/rev_align" % (l1,l2)) > (WORKING + "/imodel/aligned.grow-diag-final-and")
-  }
+  //}
 
-  block("Phrase table generation") {
+  //block("Phrase table generation") {
     val lmFile1 = new File(LM_DIR+l1).getCanonicalPath()
     Do(MOSES_DIR+"/mosesdecoder/scripts/training/train-model.perl",
       "-do-steps","4-9","-root-dir",WORKING,
@@ -115,7 +119,7 @@ def buildTranslationModel(WORKING : String, WORKING_CORPUS : String, LM_DIR : St
       "-lm","0:3:"+lmFile2+":8",
       "-model-dir",WORKING + "/imodel",
       "-external-bin-dir",MOSES_DIR + "/tools")
-  }
+  //}
 }
 
 if(splitSize <= 0) {
@@ -125,15 +129,15 @@ if(splitSize <= 0) {
   split(splitSize,WORKING_CORPUS + ".clean." + l1) { i =>
     WORKING + "/" + i + "/corpus."+l1
   }
-  split(splitSize,WORKING_CORPUS + ".clean." + l1) { i =>
-    WORKING + "/" + i + "/corpus."+l1
+  split(splitSize,WORKING_CORPUS + ".clean." + l2) { i =>
+    WORKING + "/" + i + "/corpus."+l2
   }
 
   task {
     val l = (WORKING + "/").ls filter (_.matches("\\d+"))
-    val groups = l grouped (l.size / heads)
+    val groups = (l grouped (l.size / heads)).toList
     for(i <- 1 to heads) {
-      set("HEAD"+i,(groups.toList)(i-1) map (WORKING + "/" + _) mkString (" "))
+      set("HEAD"+i,groups(i-1) map (WORKING + "/" + _) mkString (" "))
     }
   }
 
