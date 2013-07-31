@@ -42,10 +42,11 @@ class Block(name : String, wf : Workflow) extends Task {
 }
 
 object block {
-  def apply(name : String)(desc : => Unit)(implicit workflow : Workflow) {
+  def apply(name : String)(desc : => Unit)(implicit workflow : Workflow) = {
     val b = new Block(name,workflow)
     workflow.startBlock(b)
     desc
     workflow.endBlock(b)
+    b
   }
 }
