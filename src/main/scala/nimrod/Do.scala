@@ -1,5 +1,6 @@
 package nimrod
-import java.io.File
+
+import java.io._
 
 class Do(args : List[String]) extends Task {
   private var stdin : Option[File] = None
@@ -22,20 +23,20 @@ class Do(args : List[String]) extends Task {
 
   override def exec = {
     val pb = new ProcessBuilder(args:_*)
-    pb.inheritIO()
+    val proc = pb.start()
+  //  pb.inheritIO()
     stdin match {
-      case Some(file) => pb.redirectInput(file)
-      case None =>
+      case Some(file) => new Connector(new FileInputStream(file),proc.getOutputStream(),true).start()
+      case None => {}
     }
     stdout match {
-      case Some(file) => pb.redirectOutput(file)
-      case None =>
+      case Some(file) => new Connector(proc.getInputStream(),new FileOutputStream(file),true).start()
+      case None => new Connector(proc.getInputStream(),System.out).start()
     }
      stderr match {
-      case Some(file) => pb.redirectError(file)
-      case None =>
+      case Some(file) => new Connector(proc.getErrorStream(),new FileOutputStream(file),true).start()
+      case None => new Connector(proc.getErrorStream(),System.err).start()
     }
-     val proc = pb.start()
     proc.waitFor()
     proc.exitValue
   }
@@ -72,6 +73,23 @@ class Do(args : List[String]) extends Task {
   }
   
   override def toString = args.mkString(" ")
+
+  class Connector(in : InputStream, out : OutputStream, close : Boolean = false) extends Thread {
+    override def run() {
+        try {
+          var i = 0
+          while({ i = in.read(); i != -1}) {
+            out.write(i)
+          }
+        } catch {
+          case x : EOFException => {}
+        }
+        if(close) {
+          out.flush
+          out.close
+        }
+    }
+  }
 }
 
 object Do {
