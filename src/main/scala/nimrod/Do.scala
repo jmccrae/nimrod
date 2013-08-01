@@ -27,21 +27,47 @@ class Do(args : List[String]) extends Task {
     for((key,value) <- envs) {
       pb.environment().put(key,value)
     }
+    var connectors : List[Connector] = Nil
     val proc = pb.start()
   //  pb.inheritIO()
     stdin match {
-      case Some(file) => new Connector(new FileInputStream(file),proc.getOutputStream(),true).start()
+      case Some(file) => {
+        val c = new Connector(new FileInputStream(file),proc.getOutputStream(),true)
+        connectors ::= c
+        c.start()
+      }
       case None => {}
     }
     stdout match {
-      case Some(file) => new Connector(proc.getInputStream(),new FileOutputStream(file),true).start()
-      case None => new Connector(proc.getInputStream(),System.out).start()
+      case Some(file) => {
+        val c = new Connector(proc.getInputStream(),new FileOutputStream(file),true)
+        connectors ::= c
+        c.start()
+      }
+      case None => {
+        val c = new Connector(proc.getInputStream(),System.out)
+        connectors ::= c
+        c.start()
+      }
     }
      stderr match {
-      case Some(file) => new Connector(proc.getErrorStream(),new FileOutputStream(file),true).start()
-      case None => new Connector(proc.getErrorStream(),System.err).start()
+      case Some(file) => {
+        val c = new Connector(proc.getErrorStream(),new FileOutputStream(file),true)
+        connectors ::= c
+        c.start()
+      }
+      case None => {
+        val c = new Connector(proc.getErrorStream(),System.err)
+        connectors ::= c 
+        c.start()
+      }
     }
     proc.waitFor()
+    for(connector <- connectors) {
+      if(connector.isAlive()) {
+        connector.join()
+      }
+    }
     proc.exitValue
   }
 

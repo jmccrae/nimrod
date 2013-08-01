@@ -9,16 +9,14 @@ class ThreadPool(nThreads : Int, action : Int => Block) extends Task {
     val success = collection.mutable.Map[Int,Boolean]()
     val tpe = new ThreadPoolExecutor(nThreads,nThreads,10,TimeUnit.SECONDS,new SynchronousQueue[Runnable]())
     for(i <- 1 to nThreads) {
-      println("Start head " + i)
+      val block = action(i)
       val task = new Runnable() {
         def run = {
-          println("Running " + i)
-          if(action(i).exec != 0) {
+          if(block.exec != 0) {
             success.put(i,false)
           } else {
             success.put(i,true)
           }
-          println("Completed " + i)
         }
       }
       tpe.execute(task)
@@ -34,9 +32,11 @@ class ThreadPool(nThreads : Int, action : Int => Block) extends Task {
 object threadPool {
   def apply(nThreads : Int, name : String)(action : Int => Unit)(implicit workflow : Workflow) {
     val tp = new ThreadPool(nThreads, i => {
-      block(name + " (" + i + ")")({
-        action(i)
-      })(workflow)
+      val b = new Block(name + "(" + i + ")",workflow)
+      workflow.startBlock(b,false)
+      action(i)
+      workflow.endBlock(b)
+      b
     })
     workflow.register(tp)
   }

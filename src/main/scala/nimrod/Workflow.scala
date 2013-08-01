@@ -79,8 +79,10 @@ class Workflow(val name : String) {
     System.exit(-1)
   }
 
-  def startBlock(b : Block) = {
-    tasks ::= (b)
+  def startBlock(b : Block, asTask : Boolean = true) = {
+    if(asTask) {
+      tasks ::= (b)
+    }
     block = Some(b)
   }
   def endBlock(b : Block) = {
