@@ -19,7 +19,6 @@ object Preprocessor {
         throw new RuntimeException("Syntax error in #import")
       }
       val pathToLoad = builder.substring(start + "#import ".length, end).replaceAll("^\\s+","").trim()
-      println(">>"+pathToLoad+"<<")
       val lines = io.Source.fromFile(pathToLoad).getLines
       builder.delete(start,end)
       val ln = System.getProperty("line.separator")

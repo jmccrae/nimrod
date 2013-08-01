@@ -60,3 +60,11 @@ object task {
     override def toString = "Anonymous task"
   })
 }
+
+object namedTask {
+  def apply(name : String)(action : => Unit)(implicit workflow : Workflow) = workflow.register(new Task {
+    override def exec = { action ; 0 }
+    override def toString = name
+  })
+}
+
