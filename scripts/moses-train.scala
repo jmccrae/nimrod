@@ -1,4 +1,3 @@
-val opts = new Opts(args)
 val l1tmp = opts.string("srcLang","The source language")
 val l2tmp = opts.string("trgLang","The target langauge")
 val splitSize = opts.intValue("l","The number of lines for each split (<= 0 for no split)",-1)
@@ -119,6 +118,18 @@ def buildTranslationModel(WORKING : String, WORKING_CORPUS : String, LM_DIR : St
       "-lm","0:3:"+lmFile2+":8",
       "-model-dir",WORKING + "/imodel",
       "-external-bin-dir",MOSES_DIR + "/tools")
+
+    val N = if(splitSize <= 0) {
+      500000
+    } else {
+      splitSize
+    }
+
+    subTask("scripts/fisher-filter.scala",N.toString,"0.5",
+      WORKING+"/model/phrase-table.gz",WORKING+"/model/phrase-table-filtered.gz")
+
+    subTask("scripts/fisher-filter.scala",N.toString,"0.5",
+      WORKING+"/imodel/phrase-table.gz",WORKING+"/imodel/phrase-table-filtered.gz")
   //}
 }
 

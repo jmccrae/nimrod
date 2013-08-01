@@ -34,7 +34,7 @@ object Main {
     programSB.append("import nimrod.tasks._ ; ")
     programSB.append("import java.io._ ; ")
     programSB.append("implicit val workflow = new Workflow(\""+args(0)+"\") ; ")
-    programSB.append("val args = Array[String](" + args.drop(1).map("\""+_+"\"").mkString(",") + ") ; ")
+    programSB.append("val opts = new Opts(Array[String](" + args.drop(1).map("\""+_+"\"").mkString(",") + ")) ; ")
     for(line <- io.Source.fromFile(args(0)).getLines) {
       programSB.append(line + ln)
     }

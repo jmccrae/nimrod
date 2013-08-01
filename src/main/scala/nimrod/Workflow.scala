@@ -4,6 +4,19 @@ class Workflow(val name : String) {
   private var tasks : List[Task] = Nil
   private var block : Option[Block] = None
 
+  def add(workflow : Workflow) = {
+   block match {
+     case Some(b) => {
+       for(task <- workflow.tasks) {
+         b.add(task)
+       }
+     }
+     case None => {
+       tasks :::= workflow.tasks
+     }
+   }
+  }
+
   def register[T <: Task](task : T) : T = {
     block match {
       case Some(b) => b.add(task)
@@ -74,7 +87,6 @@ class Workflow(val name : String) {
   }
   
   def compileFail(message : String) {
-    System.err.println("Workflow failed to compile:")
     System.err.println(message)
     System.exit(-1)
   }

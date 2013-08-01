@@ -1,5 +1,6 @@
 package nimrod
 
+import com.twitter.util.Eval
 import java.io.File
 
 trait Task {
@@ -68,3 +69,21 @@ object namedTask {
   })
 }
 
+object subTask {
+  def apply(file : File, opts : String*)(implicit workflow : Workflow) {
+    val programSB = new StringBuilder()
+    val ln = System.getProperty("line.separator")
+    programSB.append("import nimrod._ ; ")
+    programSB.append("import nimrod.tasks._ ; ")
+    programSB.append("import java.io._ ; ")
+    programSB.append("implicit val workflow = new Workflow(\""+file.getPath()+"\") ; ")
+    programSB.append("val opts = new Opts(Array[String](" + opts.map("\""+_+"\"").mkString(",") + ")) ; ")
+    for(line <- io.Source.fromFile(file).getLines) {
+      programSB.append(line + ln)
+    }
+    programSB.append("workflow")
+    val wf = new Eval().apply[Workflow](programSB.toString())
+    workflow.add(wf)
+  }
+  def apply(path : String, opts : String*)(implicit workflow : Workflow) { apply(new File(path),opts:_*)(workflow) }
+}

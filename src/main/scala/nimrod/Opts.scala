@@ -25,7 +25,7 @@ class Opts(args : Seq[String]) {
                 message.append("Too many arguments"+ln);
             }
             for (argObj <-  argObjs) {
-                if (argObj.message != null) {
+                if (argObj.message != null && argObj.message != "") {
                     message.append(argObj.message + ln);
                 }
             }
