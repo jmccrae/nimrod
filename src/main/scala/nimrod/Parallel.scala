@@ -12,19 +12,23 @@ class ThreadPool(nThreads : Int, action : Int => Block) extends Task {
       println("Start head " + i)
       val task = new Runnable() {
         def run = {
+          println("Running " + i)
           if(action(i).exec != 0) {
             success.put(i,false)
           } else {
             success.put(i,true)
           }
+          println("Completed " + i)
         }
       }
       tpe.execute(task)
     }
-    tpe.awaitTermination(5,TimeUnit.DAYS)
     tpe.shutdown()
+    tpe.awaitTermination(5,TimeUnit.DAYS)
     0
   }
+
+  override def toString = "Concurrent task on " + nThreads + " threads"
 }
 
 object threadPool {

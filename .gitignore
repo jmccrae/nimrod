@@ -14,7 +14,7 @@ project/target/
 .scala_dependencies
 
 # Testing locations
-corpus/
+corpus
 working/
 tmp
 

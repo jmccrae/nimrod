@@ -47,6 +47,7 @@ class Workflow(val name : String) {
     currentStep = 1
     for(task <- tasks.reverse) {
       println("  " + currentStep + ". " + task.toString)
+      currentStep += 1
     }
   }
 
