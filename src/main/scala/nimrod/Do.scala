@@ -101,8 +101,9 @@ class Do(args : List[String]) extends Task {
     stderr = Some(new File(path)) 
     this 
   }
-  def env(key : String, value : String) {
+  def env(key : String, value : String) = {
     envs.put(key,value)
+    this
   }
   
   override def toString = args.mkString(" ")

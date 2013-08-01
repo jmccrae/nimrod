@@ -1,6 +1,7 @@
 val l1tmp = opts.string("srcLang","The source language")
 val l2tmp = opts.string("trgLang","The target langauge")
 val splitSize = opts.intValue("l","The number of lines for each split (<= 0 for no split)",-1)
+opts.restAsSystemProperties
 opts.verify
 
 val l1 = List(l1tmp,l2tmp).min
@@ -144,7 +145,7 @@ if(splitSize <= 0) {
     WORKING + "/" + i + "/corpus."+l2
   }
 
-  task {
+  namedTask("Preparing splits") {
     val l = (WORKING + "/").ls filter (_.matches("\\d+"))
     val groups = (l grouped (l.size / heads)).toList
     for(i <- 1 to heads) {
@@ -157,4 +158,20 @@ if(splitSize <= 0) {
         buildTranslationModel(splitWorking, splitWorking + "/corpus", WORKING + "/../lm/")
       }
   })
+
+  cat(find(WORKING_CORPUS)(file => {
+    file.getPath() endsWith "/model/phrase-table-filtered.gz"
+  }).apply) > (WORKING + "/model/phrase-table")
+
+  sort(WORKING + "/model/phrase-table") > (WORKING + "/model/phrase-table-sorted")
+
+  gzip(WORKING + "/model/phrase-table-sorted")
+
+  cat(find(WORKING_CORPUS)(file => {
+    file.getPath() endsWith "/imodel/phrase-table-filtered.gz"
+  }).apply) > (WORKING + "/imodel/phrase-table")
+
+  sort(WORKING + "/imodel/phrase-table") > (WORKING + "/imodel/phrase-table-sorted")
+
+  gzip(WORKING + "/imodel/phrase-table-sorted")
 }

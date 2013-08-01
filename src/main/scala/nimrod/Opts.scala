@@ -8,8 +8,14 @@ import collection.JavaConversions._
 
 class Opts(args : Seq[String]) {
     private val argObjs = new ArrayList[Argument]()
+    private var requireFilesExist = true
     private var succeeded = true;
     private val _args = collection.mutable.ListBuffer[String](args:_*)
+
+    def doNotRequireFileExists = {
+      requireFilesExist = false
+      this
+    }
 
     /**
      * Call this after calling all CLIOpts to verify the CLIOpts are valid
@@ -68,7 +74,7 @@ class Opts(args : Seq[String]) {
             return null;
         } else {
             val file = new File(_args.get(0));
-            if (!file.exists() || !file.canRead()) {
+            if (requireFilesExist && (!file.exists() || !file.canRead())) {
                 arg.message = "Cannot access [" + file.getPath() + "] for " + name;
                 succeeded = false;
                 _args.remove(0);
@@ -88,7 +94,7 @@ class Opts(args : Seq[String]) {
             for (i <- 0 until _args.size() - 1) {
                 if (_args.get(i).equals("-" + name)) {
                     val file = new File(_args.get(i + 1));
-                    if (!file.exists() || !file.canRead()) {
+                    if (requireFilesExist && (!file.exists() || !file.canRead())) {
                         arg.message = "Cannot access [" + file.getPath() + "] for " + name;
                         succeeded = false;
                         _args.remove(0);
@@ -112,7 +118,7 @@ class Opts(args : Seq[String]) {
             return null;
         } else {
             val file = new File(_args.get(0));
-            if (file.exists() && !file.canWrite()) {
+            if (requireFilesExist && file.exists() && !file.canWrite()) {
                 arg.message = "Cannot access [" + file.getPath() + "] for " + name;
                 succeeded = false;
                 _args.remove(0);
@@ -132,7 +138,7 @@ class Opts(args : Seq[String]) {
             for (i <- 0 until _args.size() - 1) {
                 if (_args.get(i).equals("-" + name)) {
                     val file = new File(_args.get(i + 1));
-                    if (file.exists() && !file.canWrite()) {
+                    if (file.exists() && requireFilesExist && !file.canWrite()) {
                         arg.message = "Cannot access [" + file.getPath() + "] for " + name;
                         succeeded = false;
                         _args.remove(i);
@@ -155,7 +161,7 @@ class Opts(args : Seq[String]) {
             return System.out;
         } else {
             val file = new File(_args.get(0));
-            if (file.exists() && !file.canWrite()) {
+            if (file.exists() && requireFilesExist && !file.canWrite()) {
                 arg.message = "Cannot access [" + file.getPath() + "] for out";
                 succeeded = false;
                 _args.remove(0);

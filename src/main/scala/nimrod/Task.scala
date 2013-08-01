@@ -77,7 +77,7 @@ object subTask {
     programSB.append("import nimrod.tasks._ ; ")
     programSB.append("import java.io._ ; ")
     programSB.append("implicit val workflow = new Workflow(\""+file.getPath()+"\") ; ")
-    programSB.append("val opts = new Opts(Array[String](" + opts.map("\""+_+"\"").mkString(",") + ")) ; ")
+    programSB.append("val opts = new Opts(Array[String](" + opts.map("\""+_+"\"").mkString(",") + ")).doNotRequireFileExists ; ")
     for(line <- io.Source.fromFile(file).getLines) {
       programSB.append(line + ln)
     }
