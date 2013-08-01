@@ -43,6 +43,13 @@ class Workflow(val name : String) {
     }
   }
 
+  def list {
+    currentStep = 1
+    for(task <- tasks.reverse) {
+      println("  " + currentStep + ". " + task.toString)
+    }
+  }
+
   def start(step : Int) {
     if(tasks.isEmpty) {
       throw new WorkflowException("No tasks defined")

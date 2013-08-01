@@ -14,11 +14,16 @@ object Main {
       printUsage
     }    
     var beginStep = 1
+    var listMode = false
     while(args(0).startsWith("-")) {
       args(0) match {
         case "-s" => {
           beginStep = args(1).toInt
           args = args.drop(2)
+        }
+        case "-l" => {
+          listMode = true
+          args = args.drop(1)
         }
         case _ => printUsage
       }
@@ -33,7 +38,11 @@ object Main {
     for(line <- io.Source.fromFile(args(0)).getLines) {
       programSB.append(line + ln)
     }
-    programSB.append("workflow.start(" + beginStep + ")" + ln)
+    if(listMode) {
+      programSB.append("workflow.list " + ln)
+    } else {
+      programSB.append("workflow.start(" + beginStep + ")" + ln)
+    }
     try {
       new Eval()(programSB.toString())
     } catch {
