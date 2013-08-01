@@ -43,6 +43,7 @@ object Main {
     } else {
       programSB.append("workflow.start(" + beginStep + ")" + ln)
     }
+    Preprocessor(programSB)
     try {
       new Eval()(programSB.toString())
     } catch {
