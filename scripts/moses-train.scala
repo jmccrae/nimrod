@@ -159,19 +159,58 @@ if(splitSize <= 0) {
       }
   })
 
+  mkdir(WORKING + "/model").p
+  mkdir(WORKING + "/imodel").p
+
   cat(find(WORKING_CORPUS)(file => {
     file.getPath() endsWith "/model/phrase-table-filtered.gz"
-  }).apply) > (WORKING + "/model/phrase-table")
+  }).apply) > (WORKING + "/model/phrase-table-all")
 
-  sort(WORKING + "/model/phrase-table") > (WORKING + "/model/phrase-table-sorted")
+  sort(WORKING + "/model/phrase-table-all") > (WORKING + "/model/phrase-table-sorted")
 
   gzip(WORKING + "/model/phrase-table-sorted")
 
   cat(find(WORKING_CORPUS)(file => {
     file.getPath() endsWith "/imodel/phrase-table-filtered.gz"
-  }).apply) > (WORKING + "/imodel/phrase-table")
+  }).apply) > (WORKING + "/imodel/phrase-table-all")
 
-  sort(WORKING + "/imodel/phrase-table") > (WORKING + "/imodel/phrase-table-sorted")
+  sort(WORKING + "/imodel/phrase-table-all") > (WORKING + "/imodel/phrase-table-sorted")
 
   gzip(WORKING + "/imodel/phrase-table-sorted")
+
+  cat(find(WORKING_CORPUS)(file => {
+    file.getPath() endsWith "/model/lex.e2f"
+  }).apply) > (WORKING + "/model/lex.e2f.tmp")
+
+  cat(find(WORKING_CORPUS)(file => {
+    file.getPath() endsWith "/model/lex.f2e"
+  }).apply) > (WORKING + "/model/lex.f2e.tmp")
+
+  cat(find(WORKING_CORPUS)(file => {
+    file.getPath() endsWith "/imodel/lex.e2f"
+  }).apply) > (WORKING + "/imodel/lex.e2f.tmp")
+
+  cat(find(WORKING_CORPUS)(file => {
+    file.getPath() endsWith "/imodel/lex.f2e"
+  }).apply) > (WORKING + "/imodel/lex.f2e.tmp")
+
+  subTask("scripts/merge-lex.scala",WORKING + "/model/lex.e2f.tmp", WORKING + "/model/lex.e2f")
+
+  subTask("scripts/merge-lex.scala",WORKING + "/model/lex.f2e.tmp", WORKING + "/model/lex.f2e")
+
+  subTask("scripts/merge-lex.scala",WORKING + "/imodel/lex.e2f.tmp", WORKING + "/imodel/lex.e2f")
+
+  subTask("scripts/merge-lex.scala",WORKING + "/imodel/lex.f2e.tmp", WORKING + "/imodel/lex.f2e")
+
+  subTask("scripts/merge-pts.scala",
+    WORKING + "/model/phrase-table-sorted",
+    WORKING + "/model/lex.e2f",
+    WORKING + "/model/lex.f2e",
+    WORKING + "/model/phrase-table")
+
+  subTask("scripts/merge-pts.scala",
+    WORKING + "/imodel/phrase-table-sorted",
+    WORKING + "/imodel/lex.e2f",
+    WORKING + "/imodel/lex.f2e",
+    WORKING + "/imodel/phrase-table")
 }
