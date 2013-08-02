@@ -137,6 +137,7 @@ def buildTranslationModel(WORKING : String, WORKING_CORPUS : String, LM_DIR : St
 if(splitSize <= 0) {
   buildTranslationModel(WORKING,WORKING_CORPUS+".clean",WORKING + "/../lm/")
 } else {
+  val nSplits = (wc("corpus/corpus-%s-%s.%s.gz" % (l1,l2,l1)).toDouble / splitSize).ceil.toInt
 
   split(splitSize,WORKING_CORPUS + ".clean." + l1) { i =>
     WORKING + "/" + i + "/corpus."+l1
@@ -147,13 +148,23 @@ if(splitSize <= 0) {
 
   namedTask("Preparing splits") {
     val l = (WORKING + "/").ls filter (_.matches("\\d+"))
-    val groups = (l grouped (l.size / heads)).toList
+    val groups = (l grouped l.size/heads).toList
+    val tail = l.size - l.size / heads * heads
+    println("===SHARDS===")
     for(i <- 1 to heads) {
-      set("HEAD"+i,groups(i-1) map (WORKING + "/" + _) mkString (" "))
+      val shards = (groups(i-1) map (WORKING + "/" + _) mkString (" ")) + (
+        if(i % heads <= tail && i != heads) {
+          " " + WORKING + "/" + l(l.size - (i % heads))
+        } else {
+          ""
+        }
+      )
+      set("HEAD"+i,shards)
+      println("HEAD " + i + ": " + shards)
     }
   }
 
-  threadPool(3,"Build Translation Model")( i => {
+  threadPool(heads,"Build Translation Model")( i => {
       for(splitWorking <- get("HEAD"+i).split(" ")) {
         buildTranslationModel(splitWorking, splitWorking + "/corpus", WORKING + "/../lm/")
       }
@@ -162,7 +173,7 @@ if(splitSize <= 0) {
   mkdir(WORKING + "/model").p
   mkdir(WORKING + "/imodel").p
 
-  cat(find(WORKING_CORPUS)(file => {
+  cat(find(WORKING)(file => {
     file.getPath() endsWith "/model/phrase-table-filtered.gz"
   }).apply) > (WORKING + "/model/phrase-table-all")
 
@@ -170,7 +181,7 @@ if(splitSize <= 0) {
 
   gzip(WORKING + "/model/phrase-table-sorted")
 
-  cat(find(WORKING_CORPUS)(file => {
+  cat(find(WORKING)(file => {
     file.getPath() endsWith "/imodel/phrase-table-filtered.gz"
   }).apply) > (WORKING + "/imodel/phrase-table-all")
 
@@ -178,29 +189,29 @@ if(splitSize <= 0) {
 
   gzip(WORKING + "/imodel/phrase-table-sorted")
 
-  cat(find(WORKING_CORPUS)(file => {
+  cat(find(WORKING)(file => {
     file.getPath() endsWith "/model/lex.e2f"
   }).apply) > (WORKING + "/model/lex.e2f.tmp")
 
-  cat(find(WORKING_CORPUS)(file => {
+  cat(find(WORKING)(file => {
     file.getPath() endsWith "/model/lex.f2e"
   }).apply) > (WORKING + "/model/lex.f2e.tmp")
 
-  cat(find(WORKING_CORPUS)(file => {
+  cat(find(WORKING)(file => {
     file.getPath() endsWith "/imodel/lex.e2f"
   }).apply) > (WORKING + "/imodel/lex.e2f.tmp")
 
-  cat(find(WORKING_CORPUS)(file => {
+  cat(find(WORKING)(file => {
     file.getPath() endsWith "/imodel/lex.f2e"
   }).apply) > (WORKING + "/imodel/lex.f2e.tmp")
 
-  subTask("scripts/merge-lex.scala",WORKING + "/model/lex.e2f.tmp", WORKING + "/model/lex.e2f")
+  subTask("scripts/merge-lex.scala",WORKING + "/model/lex.e2f.tmp", nSplits.toString, WORKING + "/model/lex.e2f")
 
-  subTask("scripts/merge-lex.scala",WORKING + "/model/lex.f2e.tmp", WORKING + "/model/lex.f2e")
+  subTask("scripts/merge-lex.scala",WORKING + "/model/lex.f2e.tmp", nSplits.toString, WORKING + "/model/lex.f2e")
 
-  subTask("scripts/merge-lex.scala",WORKING + "/imodel/lex.e2f.tmp", WORKING + "/imodel/lex.e2f")
+  subTask("scripts/merge-lex.scala",WORKING + "/imodel/lex.e2f.tmp", nSplits.toString, WORKING + "/imodel/lex.e2f")
 
-  subTask("scripts/merge-lex.scala",WORKING + "/imodel/lex.f2e.tmp", WORKING + "/imodel/lex.f2e")
+  subTask("scripts/merge-lex.scala",WORKING + "/imodel/lex.f2e.tmp", nSplits.toString, WORKING + "/imodel/lex.f2e")
 
   subTask("scripts/merge-pts.scala",
     WORKING + "/model/phrase-table-sorted",

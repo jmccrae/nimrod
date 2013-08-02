@@ -1,4 +1,5 @@
 val lex = opts.roFile("lex","The merged lex files")
+val N = opts.intValue("N","The number of individual lex files that were merged")
 val outFile = opts.woFile("out","Where to write the merged lex files to")
 opts.verify
 
@@ -10,28 +11,27 @@ namedTask("Merge Lex") {
   var thresh = backoff
 
   val lexline = "(.* .*) (.*)".r
-    for(line <- io.Source.fromFile(lex).getLines) {
-      line match {
-        case lexline(key,value) => {
-          val newVal = Option(probs.get(key)) match {
-            case Some(v) => v+value.toDouble
-            case None => value.toDouble
-          }
-          if(newVal > thresh) {
-            probs.put(key,newVal)
-          }
+  for(line <- io.Source.fromFile(lex).getLines) {
+    line match {
+      case lexline(key,value) => {
+        val newVal = Option(probs.get(key)) match {
+          case Some(v) => v+value.toDouble / N
+          case None => value.toDouble / N
         }
-        case _ => System.err.println("bad line: " + line)
+        if(newVal > thresh) {
+          probs.put(key,newVal)
+        } 
       }
+      case _ => System.err.println("bad line: " + line)
+    }
+  }
+  {
     val iter = probs.entrySet().iterator()
     while(iter.hasNext()) {
       if(iter.next().getValue() < thresh) {
         iter.remove()
       }
     }
-//    System.err.println(file + " (" + probs.size + " elements)")
-    n += 1
-    thresh += backoff
   }
 
   val out = new java.io.PrintStream(outFile)

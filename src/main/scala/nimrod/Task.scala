@@ -13,6 +13,15 @@ trait Task {
   protected def requires(artifact : File) {
     requirements ::= new FileArtifact(artifact)
   }
+  protected def unrequire(artifact : Artifact) {
+    requirements = requirements.filterNot(_ == artifact)
+  }
+  protected def unrequire(artifact : File) {
+    requirements = requirements.filterNot({
+      case FileArtifact(f) => artifact == f
+      case _ => false
+    })
+  }  
   protected def generates(artifact : Artifact) {
     results ::= artifact
   }

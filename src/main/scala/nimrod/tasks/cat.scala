@@ -2,8 +2,10 @@ package nimrod.tasks
 
 import nimrod._
 import java.io.File
+import java.io.FileInputStream
 import java.io.PrintStream
 import java.util.Scanner
+import java.util.zip.GZIPInputStream
 
 class cat(files : => Seq[File]) extends Task {
   private var outFile : Option[File] = None
@@ -13,7 +15,11 @@ class cat(files : => Seq[File]) extends Task {
       case None => System.out
     }
     for(file <- files) {
-      val in = new Scanner(file)
+      val in = if(file.getName() endsWith ".gz") {
+        new Scanner(new GZIPInputStream(new FileInputStream(file)))
+      } else {
+        new Scanner(file)
+      }
       while(in.hasNextLine) {
         out.println(in.nextLine)
       }

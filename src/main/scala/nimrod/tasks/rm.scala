@@ -11,7 +11,10 @@ class rm(file : File) extends Task {
   }
   requires(file)
 
-  def ifexists { e = true }
+  def ifexists { 
+    unrequire(file)
+    e = true 
+  }
   override def toString = "rm " + file
 }
 

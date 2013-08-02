@@ -5,7 +5,8 @@ import java.io.File
 class find(start : File, filter : File => Boolean) {
   def apply : Seq[File] = findFrom(start)
 
-  def findFrom(file : File) : Seq[File] = if(file.isDirectory) {
+  def findFrom(file : File) : Seq[File] = {
+  if(file.isDirectory) {
     if(filter(file)) {
       Seq(file)
     } else {
@@ -19,6 +20,7 @@ class find(start : File, filter : File => Boolean) {
     } else {
       Seq()
     }
+  }
   }
 }
 
