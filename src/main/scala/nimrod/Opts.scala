@@ -1,9 +1,9 @@
 package nimrod
 
-import java.io.File
-import java.io.FileNotFoundException
-import java.io.PrintStream
+import java.io._
 import java.util.ArrayList
+import java.util.zip.{GZIPInputStream,GZIPOutputStream}
+import org.apache.commons.compress.compressors.bzip2.{BZip2CompressorInputStream,BZip2CompressorOutputStream}
 import collection.JavaConversions._
 
 class Opts(args : Seq[String]) {
@@ -472,42 +472,42 @@ class Opts(args : Seq[String]) {
         _args.clear();
     }
 
-//    /**
-//     * Return a file as an input stream, that unzips if the file ends in .gz or
-//     * .bz2.
-//     *
-//     * @param file The file
-//     * @return File as an input stream
-//     * @throws IOException If the file is not found or is not a correct zipped
-//     * file or some other reason
-//     */
-//    public static InputStream openInputAsMaybeZipped(File file) throws IOException {
-//        if (file.getName().endsWith(".gz")) {
-//            return new GZIPInputStream(new MMapFileInputStream(file));
-//        } else if (file.getName().endsWith(".bz2")) {
-//            return new BZip2CompressorInputStream(new MMapFileInputStream(file));
-//        } else {
-//            return new MMapFileInputStream(file);
-//        }
-//    }
-//
-//    /**
-//     * Return a file as an output stream, that zips if the file ends in .gz or
-//     * .bz2.
-//     *
-//     * @param file The file
-//     * @return File as an output stream
-//     * @throws IOException If the file is not found or some other reason
-//     */
-//    public static OutputStream openOutputAsMaybeZipped(File file) throws IOException {
-//        if (file.getName().endsWith(".gz")) {
-//            return new GZIPOutputStream(new FileOutputStream(file));
-//        } else if (file.getName().endsWith(".bz2")) {
-//            return new BZip2CompressorOutputStream(new FileOutputStream(file));
-//        } else {
-//            return new FileOutputStream(file);
-//        }
-//    }
+    /**
+     * Return a file as an input stream, that unzips if the file ends in .gz or
+     * .bz2.
+     *
+     * @param file The file
+     * @return File as an input stream
+     * @throws IOException If the file is not found or is not a correct zipped
+     * file or some other reason
+     */
+    def openInput(file : File) : io.Source = {
+        if (file.getName().endsWith(".gz")) {
+            io.Source.fromInputStream(new GZIPInputStream(new FileInputStream(file)))
+        } else if (file.getName().endsWith(".bz2")) {
+            io.Source.fromInputStream(new BZip2CompressorInputStream(new FileInputStream(file)))
+        } else {
+            io.Source.fromFile(file)
+        }
+    }
+
+    /**
+     * Return a file as an output stream, that zips if the file ends in .gz or
+     * .bz2.
+     *
+     * @param file The file
+     * @return File as an output stream
+     * @throws IOException If the file is not found or some other reason
+     */
+    def openOutput(file : File) : PrintStream = {
+        if (file.getName().endsWith(".gz")) {
+            new PrintStream(new GZIPOutputStream(new FileOutputStream(file)))
+        } else if (file.getName().endsWith(".bz2")) {
+            new PrintStream(new BZip2CompressorOutputStream(new FileOutputStream(file)))
+        } else {
+            new PrintStream(file)
+        }
+    }
 
     private class Argument(val name : String, val flag : String, val description : String, val optional : Boolean) {
         var message = ""

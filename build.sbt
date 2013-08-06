@@ -13,5 +13,6 @@ scalacOptions += "-deprecation"
 
 libraryDependencies ++= Seq(
    "org.scalatest" %% "scalatest" % "1.8" % "test",
-   "com.twitter" %% "util-eval" % "6.3.6"
+   "com.twitter" %% "util-eval" % "6.3.6",
+   "org.apache.commons" % "commons-compress" % "1.5"
 )
