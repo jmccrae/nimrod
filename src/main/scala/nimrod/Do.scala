@@ -112,8 +112,9 @@ class Do(args : List[String]) extends Task {
     override def run() {
         try {
           var i = 0
-          while({ i = in.read(); i != -1}) {
-            out.write(i)
+          val buf = new Array[Byte](1024)
+          while({ i = in.read(buf); i != -1}) {
+            out.write(buf,0,i)
           }
         } catch {
           case x : EOFException => {}

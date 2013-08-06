@@ -1,6 +1,7 @@
 val l1tmp = opts.string("srcLang","The source language")
 val l2tmp = opts.string("trgLang","The target langauge")
 val splitSize = opts.intValue("l","The number of lines for each split (<= 0 for no split)",-1)
+val resume = opts.flag("resume","Resume based on previous state")
 opts.restAsSystemProperties
 opts.verify
 
@@ -13,6 +14,7 @@ val CDEC_DIR = System.getProperty("cdecDir","/home/jmccrae/cdec")
 
 //export IRSTLM=`pwd`/irstlm
 
+if(!resume) {
 mkdir(WORKING).p
 mkdir(WORKING).p
 
@@ -35,11 +37,12 @@ mkdir(WORKING).p
     "corpus/corpus-%s-%s.true" % (l1,l2),
     l1,l2,WORKING + "/corpus-%s-%s.clean" % (l1,l2),"1","80")
 //}
-
+}
 val WORKING_CORPUS = WORKING + "/corpus-%s-%s" % (l1,l2)
 
-def buildLM(lm : String) = {
- // block("Build language model for " + lm) {
+
+def buildLM(lm : String) {
+  if(!resume || !new File(WORKING + "/../lm/"+lm).exists) {
     mkdir(WORKING + "/../lm").p
 
     Do(MOSES_DIR+"/irstlm/bin/add-start-end.sh") < (WORKING_CORPUS + ".clean." + lm) > (WORKING_CORPUS + ".sb." + lm)
@@ -56,6 +59,7 @@ def buildLM(lm : String) = {
       "--text","yes",
       WORKING + "/../lm/"+lm+".gz",
       WORKING + "/../lm/"+lm)
+  }
   //}
 }  
 
@@ -63,6 +67,7 @@ buildLM(l1)
 buildLM(l2)
 
 def buildTranslationModel(WORKING : String, WORKING_CORPUS : String, LM_DIR : String) = {
+  if(!resume || !new File(WORKING+"/imodel/phrase-table-filtered.gz").exists) {
   mkdir(WORKING + "/model").p
 
   mkdir(WORKING + "/imodel").p
@@ -132,6 +137,7 @@ def buildTranslationModel(WORKING : String, WORKING_CORPUS : String, LM_DIR : St
     subTask("scripts/fisher-filter.scala",N.toString,"0.5",
       WORKING+"/imodel/phrase-table.gz",WORKING+"/imodel/phrase-table-filtered.gz")
   //}
+  }
 }
 
 if(splitSize <= 0) {
