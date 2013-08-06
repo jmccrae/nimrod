@@ -17,44 +17,49 @@ implicit val rankingOrdering = new java.util.Comparator[Ranking] {
   }
 }
 
-val rankings = new java.util.TreeSet[Ranking]()
+val rankings = new java.util.TreeSet[Ranking](rankingOrdering)
 
-val simIn = opts.openInput(sim).getLines
-simIn.next // discard header line
+namedTask("Calculate Top N lines") {
+  val simIn = opts.openInput(sim).getLines
+  simIn.next // discard header line
 
-for(line <- simIn) {
-  line.split(",") match {
-    case Array(n,_,score) => {
-      val r = Ranking(n.toInt,score.toDouble)
-      if(!rankings.isEmpty || rankingOrdering.compare(r,rankings.first) > 0) {
-        rankings.add(r)
-        if(rankings.size > N) {
-          rankings.remove(rankings.first)
+  for(line <- simIn) {
+    line.split(",") match {
+      case Array(n,_,score) => {
+        val r = Ranking(n.toInt,score.toDouble)
+        if(rankings.isEmpty || rankingOrdering.compare(r,rankings.first) > 0) {
+          rankings.add(r)
+          if(rankings.size() > N) {
+            rankings.remove(rankings.first)
+          }
         }
       }
     }
   }
+  println(rankings.size)
 }
 
 import scala.collection.JavaConversions._
 
-var lines = rankings.map(_.lineNo)
 
-val fIn = opts.openInput(foreignFile).getLines
-val tIn = opts.openInput(translationFile).getLines
-val fOut = opts.openOutput(foreignOut)
-val tOut = opts.openOutput(translationOut)
+namedTask("Filter corpus") {
+  val lines = rankings.map(_.lineNo)
+  val fIn = opts.openInput(foreignFile).getLines
+  val tIn = opts.openInput(translationFile).getLines
+  val fOut = opts.openOutput(foreignOut)
+  val tOut = opts.openOutput(translationOut)
 
-var linesRead = 0
+  var linesRead = 0
 
-for((fLine,tLine) <- (fIn zip tIn)) {
-  if(lines contains linesRead) {
-    fOut.println(fLine)
-    tOut.println(tLine)
+  for((fLine,tLine) <- (fIn zip tIn)) {
+    if(lines contains linesRead) {
+      fOut.println(fLine)
+      tOut.println(tLine)
+    }
+    linesRead += 1
   }
+  fOut.flush
+  fOut.close
+  tOut.flush
+  tOut.close
 }
-fOut.flush
-fOut.close
-tOut.flush
-tOut.close
-

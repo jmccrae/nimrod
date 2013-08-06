@@ -7,10 +7,10 @@ opts.verify
 
 val l1 = List(l1tmp,l2tmp).min
 val l2 = List(l1tmp,l2tmp).max
-val WORKING = System.getProperty("user.dir") + "/working/" + l1 + "-" + l2
+val WORKING = System.getProperty("working",System.getProperty("user.dir") + "/working/" + l1 + "-" + l2)
 val heads = 4
-val MOSES_DIR = System.getProperty("mosesDir","/home/jmccrae/moses")
-val CDEC_DIR = System.getProperty("cdecDir","/home/jmccrae/cdec")
+val MOSES_DIR = System.getProperty("mosesDir",System.getProperty("user.home")+"/moses")
+val CDEC_DIR = System.getProperty("cdecDir",System.getProperty("user.home")+"/cdec")
 
 //export IRSTLM=`pwd`/irstlm
 
