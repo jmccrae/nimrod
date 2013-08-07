@@ -11,6 +11,7 @@ val WORKING = System.getProperty("working",System.getProperty("user.dir") + "/wo
 val heads = 4
 val MOSES_DIR = System.getProperty("mosesDir",System.getProperty("user.home")+"/moses")
 val CDEC_DIR = System.getProperty("cdecDir",System.getProperty("user.home")+"/cdec")
+val doFilter = System.getProperty("filter","true").toBoolean
 
 //export IRSTLM=`pwd`/irstlm
 
@@ -131,11 +132,13 @@ def buildTranslationModel(WORKING : String, WORKING_CORPUS : String, LM_DIR : St
       splitSize
     }
 
-    subTask("scripts/fisher-filter.scala",N.toString,"0.5",
-      WORKING+"/model/phrase-table.gz",WORKING+"/model/phrase-table-filtered.gz")
+    if(doFilter) {
+      subTask("scripts/fisher-filter.scala",N.toString,"0.5",
+        WORKING+"/model/phrase-table.gz",WORKING+"/model/phrase-table-filtered.gz")
 
-    subTask("scripts/fisher-filter.scala",N.toString,"0.5",
-      WORKING+"/imodel/phrase-table.gz",WORKING+"/imodel/phrase-table-filtered.gz")
+      subTask("scripts/fisher-filter.scala",N.toString,"0.5",
+        WORKING+"/imodel/phrase-table.gz",WORKING+"/imodel/phrase-table-filtered.gz")
+    }
   //}
   }
 }
@@ -180,7 +183,11 @@ if(splitSize <= 0) {
   mkdir(WORKING + "/imodel").p
 
   cat(find(WORKING)(file => {
-    file.getPath() endsWith "/model/phrase-table-filtered.gz"
+    if(doFilter) {
+      file.getPath() endsWith "/model/phrase-table-filtered.gz"
+    } else {
+      file.getPath() endsWith "/model/phrase-table.gz"
+    }
   }).apply) > (WORKING + "/model/phrase-table-all")
 
   sort(WORKING + "/model/phrase-table-all") > (WORKING + "/model/phrase-table-sorted")
@@ -188,7 +195,12 @@ if(splitSize <= 0) {
   gzip(WORKING + "/model/phrase-table-sorted")
 
   cat(find(WORKING)(file => {
-    file.getPath() endsWith "/imodel/phrase-table-filtered.gz"
+    if(doFilter) {
+      file.getPath() endsWith "/imodel/phrase-table-filtered.gz"
+    } else {
+      file.getPath() endsWith "/imodel/phrase-table.gz"
+    }
+
   }).apply) > (WORKING + "/imodel/phrase-table-all")
 
   sort(WORKING + "/imodel/phrase-table-all") > (WORKING + "/imodel/phrase-table-sorted")
