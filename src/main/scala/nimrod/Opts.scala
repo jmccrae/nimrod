@@ -434,6 +434,24 @@ class Opts(args : Seq[String]) {
       }
     }
 
+    def string(name : String, defaultValue : String, description : String) : String = {
+        val arg = new Argument(name, name, description, true);
+        argObjs.add(arg);
+        if (_args.isEmpty()) {
+            return defaultValue;
+        } else {
+            for (i <- 0 until _args.size() - 1) {
+                if (_args.get(i).equals("-" + name)) {
+                  val str = _args.get(i+1)
+                  _args.remove(i);
+                  _args.remove(i);
+                  return str;
+                }
+            }
+            return defaultValue;
+        }
+    }
+
 /*    public Language language(String name, String description) {
 
         final Argument arg = new Argument(name, null, description, false);
