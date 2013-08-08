@@ -6,6 +6,7 @@ class Do(args : List[String]) extends Task {
   private var stdin : Option[File] = None
   private var stdout : Option[File] = None
   private var stderr : Option[File] = None
+  private var _dir : Option[File] = None
   private val envs = collection.mutable.Map[String,String]()
 
   private val cmdFile = new File(args(0))
@@ -26,6 +27,9 @@ class Do(args : List[String]) extends Task {
     val pb = new ProcessBuilder(args:_*)
     for((key,value) <- envs) {
       pb.environment().put(key,value)
+    }
+    if(_dir != None) {
+      pb.directory(_dir.get)
     }
     var connectors : List[Connector] = Nil
     val proc = pb.start()
@@ -103,6 +107,10 @@ class Do(args : List[String]) extends Task {
   }
   def env(key : String, value : String) = {
     envs.put(key,value)
+    this
+  }
+  def dir(file : File) = {
+    _dir = Some(file)
     this
   }
   
