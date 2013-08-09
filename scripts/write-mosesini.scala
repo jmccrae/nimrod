@@ -50,7 +50,7 @@ out.println("""#########################
     "0-0 wbe-msd-bidirectional-fe-allff 6 " + prefix + "/reordering-table"
   }))
 
-if(forMert) {
+if(forMert || !(new java.io.File(prefix + "/mert-work/moses.ini").exists())) {
   out.println("""# distortion (reordering) weight
 [weight-d]
 0.3

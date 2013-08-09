@@ -2,7 +2,7 @@ val rotIn = opts.roFile("table[.gz]","The unmerged reordering table to read")
 val rotOut = opts.woFile("out[.gz]","The target for the merged reordering table")
 opts.verify
 
-val out = opts.openOutput(rotOut)
+namedTask("Merge Reordering Table") {
 
 var lastF = ""
 var lastT = ""
@@ -16,7 +16,7 @@ implicit def sumScores(l1 : Array[Double]) = new {
   })
   def /(v : Double) = l1 map (_ / v)
 }
-
+val out = opts.openOutput(rotOut)
 for(line <- opts.openInput(rotIn).getLines) {
   val Array(f,t,s) = line.split(" \\|\\|\\| ")
   if(f != lastF && t != lastT) {
@@ -39,3 +39,4 @@ for(line <- opts.openInput(rotIn).getLines) {
 System.err.println()
 out.flush
 out.close
+}
