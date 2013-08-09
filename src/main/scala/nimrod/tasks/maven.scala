@@ -25,9 +25,9 @@ object mj {
     } else {
       System.getProperty("user.dir"+"/pom.xml")
     })
-    Do("mvn","-f",pomFile.getCanonicalPath,"exec:java",
-      "-Dexec.mainClass=\"" + clazz + "\"",
-      "-Dexec.args=\"" + args.mkString(" ") + "\""
+    Do("mvn","-q","-f",pomFile.getCanonicalPath,"exec:java",
+      "-Dexec.mainClass=" + clazz,
+      "-Dexec.args=" + args.mkString(" ")
     ).dir(pomFile.getParentFile())
   }
 }

@@ -1,8 +1,15 @@
-val rdfLiteral = java.util.regex.Pattern.compile("\"([^\"]+)\"" + (if(args.length == 1) { "@" + args(0) } else { "" }))
+val in = opts.roFile("rdfFile","The input file to extract strings from")
+val out = opts.outFileOrStdout()
+val lang = opts.string("lang",null,"The language to extract, or omit for untagged strings")
+opts.verify
 
-for(line <- io.Source.stdin.getLines) {
-  val m = rdfLiteral.matcher(line)
-  while(m.find()) {
-    println(m.group(1))
+val rdfLiteral = java.util.regex.Pattern.compile("\"([^\"]+)\"" + (if(lang != null) { "@" + lang } else { "" }))
+
+namedTask("Extract tags") {
+  for(line <- opts.openInput(in).getLines) {
+    val m = rdfLiteral.matcher(line)
+    while(m.find()) {
+      out.println(m.group(1))
+    }
   }
 }
