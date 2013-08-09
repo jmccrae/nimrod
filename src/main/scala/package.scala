@@ -13,4 +13,5 @@ package object nimrod {
     System.setProperty(key,value)
   }
   def get(key : String) = System.getProperty(key)
+  def pwd = System.getProperty("user.dir")
 }

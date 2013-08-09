@@ -117,7 +117,7 @@ namedTask("Merge PT") {
 
   System.err.println("Read PT")
 
-  val out = new PrintWriter(outFile)
+  val out = opts.openOutput(outFile)
 
   for(line <- io.Source.fromFile(ptIn).getLines) {
     line match {

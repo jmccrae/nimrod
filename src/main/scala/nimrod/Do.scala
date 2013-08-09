@@ -113,6 +113,7 @@ class Do(args : List[String]) extends Task {
     _dir = Some(file)
     this
   }
+  def dir(path : String) : Do = dir(new File(path))
   
   override def toString = args.mkString(" ")
 

@@ -2,6 +2,7 @@ val l1tmp = opts.string("srcLang","The source language")
 val l2tmp = opts.string("trgLang","The target langauge")
 val splitSize = opts.intValue("l","The number of lines for each split (<= 0 for no split)",-1)
 val resume = opts.flag("resume","Resume based on previous state")
+val mert = opts.flag("mert","Tune using MERT")
 opts.restAsSystemProperties
 opts.verify
 
@@ -13,31 +14,23 @@ val MOSES_DIR = System.getProperty("mosesDir",System.getProperty("user.home")+"/
 val CDEC_DIR = System.getProperty("cdecDir",System.getProperty("user.home")+"/cdec")
 val doFilter = System.getProperty("filter","true").toBoolean
 
-//export IRSTLM=`pwd`/irstlm
-
 if(!resume) {
-mkdir(WORKING).p
-mkdir(WORKING).p
+  mkdir(WORKING).p
+  mkdir(WORKING).p
 
-//block("Prepare corpus " + l1) {
   gunzip("corpus/corpus-%s-%s.%s.gz" % (l1,l2,l1))
   Do(MOSES_DIR+"/mosesdecoder/scripts/tokenizer/tokenizer.perl","-l",l1) < ("corpus/corpus-%s-%s.%s" % (l1,l2,l1)) > ("corpus/corpus-%s-%s.tok.%s" % (l1,l2,l1))
   checkExists(MOSES_DIR+"/truecaser/truecase."+l1)
   Do(MOSES_DIR+"/mosesdecoder/scripts/recaser/truecase.perl","--model",MOSES_DIR+"/truecaser/truecase."+l1) < ("corpus/corpus-%s-%s.tok.%s" % (l1,l2,l1)) > ("corpus/corpus-%s-%s.true.%s" % (l1,l2,l1))
-//}
 
-//block("Prepare corpus " + l2) {
   gunzip("corpus/corpus-%s-%s.%s.gz" % (l1,l2,l2))
   Do(MOSES_DIR+"/mosesdecoder/scripts/tokenizer/tokenizer.perl","-l",l2) < ("corpus/corpus-%s-%s.%s" % (l1,l2,l2)) > ("corpus/corpus-%s-%s.tok.%s" % (l1,l2,l2))
   checkExists(MOSES_DIR+"/truecaser/truecase."+l2)
   Do(MOSES_DIR+"/mosesdecoder/scripts/recaser/truecase.perl","--model",MOSES_DIR+"/truecaser/truecase."+l2) < ("corpus/corpus-%s-%s.tok.%s" % (l1,l2,l2)) > ("corpus/corpus-%s-%s.true.%s" % (l1,l2,l2))
-//}
 
-//block("Clean corpus ") {
   Do(MOSES_DIR+"/mosesdecoder/scripts/training/clean-corpus-n.perl",
     "corpus/corpus-%s-%s.true" % (l1,l2),
     l1,l2,WORKING + "/corpus-%s-%s.clean" % (l1,l2),"1","80")
-//}
 }
 val WORKING_CORPUS = WORKING + "/corpus-%s-%s" % (l1,l2)
 
@@ -60,6 +53,10 @@ def buildLM(lm : String) {
       "--text","yes",
       WORKING + "/../lm/"+lm+".gz",
       WORKING + "/../lm/"+lm)
+
+    Do(MOSES_DIR+"/mosesdecoder/bin/build_binary",
+      WORKING + "/../lm/"+lm,
+      WORKING + "/../lm/"+lm+".bin")
   }
   //}
 }  
@@ -133,13 +130,12 @@ def buildTranslationModel(WORKING : String, WORKING_CORPUS : String, LM_DIR : St
     }
 
     if(doFilter) {
-      subTask("scripts/fisher-filter.scala",N.toString,"0.5",
+      subTask("scripts/mt/simple-entropy.scala","50",
         WORKING+"/model/phrase-table.gz",WORKING+"/model/phrase-table-filtered.gz")
 
-      subTask("scripts/fisher-filter.scala",N.toString,"0.5",
+      subTask("scripts/mt/simple-entropy.scala","50",
         WORKING+"/imodel/phrase-table.gz",WORKING+"/imodel/phrase-table-filtered.gz")
     }
-  //}
   }
 }
 
@@ -223,6 +219,14 @@ if(splitSize <= 0) {
     file.getPath() endsWith "/imodel/lex.f2e"
   }).apply) > (WORKING + "/imodel/lex.f2e.tmp")
 
+  cat(find(WORKING)(file => {
+    file.getPath() endsWith "/model/reordering-table.wbe-msd-bidirectional-fe.gz"
+  }).apply) > (WORKING + "/model/reordering-table.gz")
+
+  cat(find(WORKING)(file => {
+    file.getPath() endsWith "/imodel/reordering-table.wbe-msd-bidirectional-fe.gz"
+  }).apply) > (WORKING + "/imodel/reordering-table.gz")
+
   subTask("scripts/merge-lex.scala",WORKING + "/model/lex.e2f.tmp", nSplits.toString, WORKING + "/model/lex.e2f")
 
   subTask("scripts/merge-lex.scala",WORKING + "/model/lex.f2e.tmp", nSplits.toString, WORKING + "/model/lex.f2e")
@@ -235,11 +239,89 @@ if(splitSize <= 0) {
     WORKING + "/model/phrase-table-sorted",
     WORKING + "/model/lex.e2f",
     WORKING + "/model/lex.f2e",
-    WORKING + "/model/phrase-table")
+    WORKING + "/model/phrase-table-filtered.gz")
 
   subTask("scripts/merge-pts.scala",
     WORKING + "/imodel/phrase-table-sorted",
     WORKING + "/imodel/lex.e2f",
     WORKING + "/imodel/lex.f2e",
-    WORKING + "/imodel/phrase-table")
+    WORKING + "/imodel/phrase-table-filtered.gz")
+
+  subTask("scripts/merge-rot.scala",
+    WORKING + "/model/reordering-table.gz",
+    WORKING + "/model/reordering-table.wbe-msd-bidirectional-fe.gz")
+
+  subTask("scripts/merge-rot.scala",
+    WORKING + "/imodel/reordering-table.gz",
+    WORKING + "/imodel/reordering-table.wbe-msd-bidirectional-fe.gz")
 }
+
+Do(MOSES_DIR+"/mosesdecoder/scripts/tokenizer/tokenizer.perl","-l",l1) < ("corpus/dev-%s-%s.%s" % (l1,l2,l1)) > ("corpus/dev-%s-%s.tok.%s" % (l1,l2,l1))
+
+Do(MOSES_DIR+"/mosesdecoder/scripts/recaser/truecase.perl","--model",MOSES_DIR+"/truecaser/truecase."+l1) < ("corpus/dev-%s-%s.tok.%s" %
+  (l1,l2,l1)) > ("corpus/dev-%s-%s.true.%s" % (l1,l2,l1))
+
+Do(MOSES_DIR+"/mosesdecoder/scripts/tokenizer/tokenizer.perl","-l",l2) < ("corpus/dev-%s-%s.%s" % (l1,l2,l2)) > ("corpus/dev-%s-%s.tok.%s" % (l1,l2,l2))
+
+Do(MOSES_DIR+"/mosesdecoder/scripts/recaser/truecase.perl","--model",MOSES_DIR+"/truecaser/truecase."+l2) < ("corpus/dev-%s-%s.tok.%s" %
+  (l1,l2,l2)) > ("corpus/dev-%s-%s.true.%s" % (l1,l2,l2))
+
+if(mert) {
+subTask("scripts/write-mosesini.scala",
+  WORKING + "/model/moses.ini",
+  WORKING + "/model",
+  WORKING + "/../lm/" + l1,"-forMert")
+
+Do(MOSES_DIR+"/mosesdecoder/scripts/training/mert-moses.pl",
+  pwd + "/corpus/dev-%s-%s.true.%s" % (l1,l2,l1),
+  pwd + "/corpus/dev-%s-%s.true.%s" % (l1,l2,l2),
+  MOSES_DIR+"/mosesdecoder/bin/moses",
+  WORKING + "/model/moses.ini",
+  "--mertdir",MOSES_DIR+"/mosesdecoder/bin",
+  "--decoder-flags=-threads 4 -s 10") > (WORKING + "/model/mert.out") err (WORKING + "/model/mert.err") dir (WORKING + "/model")
+}
+
+subTask("scripts/write-mosesini.scala",
+  WORKING + "/model/moses.ini",
+  WORKING + "/model",
+  WORKING + "/../lm/" + l1)
+
+if(mert) {
+subTask("scripts/write-mosesini.scala",
+  WORKING + "/imodel/moses.ini",
+  WORKING + "/imodel",
+  WORKING + "/../lm/" + l1,"-forMert")
+
+Do(MOSES_DIR+"/mosesdecoder/scripts/training/mert-moses.pl",
+  pwd + "/corpus/dev-%s-%s.true.%s" % (l1,l2,l1),
+  pwd + "/corpus/dev-%s-%s.true.%s" % (l1,l2,l2),
+  MOSES_DIR+"/mosesdecoder/bin/moses",
+  WORKING + "/imodel/moses.ini",
+  "--mertdir",MOSES_DIR+"/mosesdecoder/bin",
+  "--decoder-flags=-threads 4 -s 10") > (WORKING + "/imodel/mert.out") err (WORKING + "/imodel/mert.err") dir (WORKING + "/imodel")
+}
+
+subTask("scripts/write-mosesini.scala",
+  WORKING + "/imodel/moses.ini",
+  WORKING + "/imodel",
+  WORKING + "/../lm/" + l2)
+
+Do(MOSES_DIR+"/mosesdecoder/bin/processPhraseTable","-ttable","0","0",
+  WORKING + "/model/phrase-table-filtered.gz",
+  "-nscores","5","-out",
+  WORKING + "/model/phrase-table.bin")
+
+Do(MOSES_DIR+"/mosesdecoder/bin/processPhraseTable","-ttable","0","0",
+  WORKING + "/imodel/phrase-table-filtered.gz",
+  "-nscores","5","-out",
+  WORKING + "/imodel/phrase-table.bin")
+
+Do(MOSES_DIR+"/mosesdecoder/bin/processLexicalTable",
+  "-in",WORKING + "/model/reordering-table.wbe-msd-bidirectional-fe.gz",
+  "-out",WORKING + "/model/reordering-table")
+
+Do(MOSES_DIR+"/mosesdecoder/bin/processLexicalTable",
+  "-in",WORKING + "/imodel/reordering-table.wbe-msd-bidirectional-fe.gz",
+  "-out",WORKING + "/imodel/reordering-table")
+
+
