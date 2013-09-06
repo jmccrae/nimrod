@@ -43,15 +43,21 @@ def buildLM(lm : String) {
 
     rm(WORKING + "/../lm/" + lm).ifexists
 
+    rm(WORKING + "/../lm/" + lm + ".tmp").ifexists
+
     Do(MOSES_DIR+"/irstlm/bin/build-lm.sh",
       "-i",WORKING_CORPUS + ".sb." + lm,
       "-t","tmp",
       "-p","-s","improved-kneser-ney",
-      "-o",WORKING + "/../lm/" + lm).env("IRSTLM",MOSES_DIR+"/irstlm")
+      "-o",WORKING + "/../lm/" + lm+".tmp").env("IRSTLM",MOSES_DIR+"/irstlm")
 
     Do (MOSES_DIR+"/irstlm/bin/compile-lm",
       "--text","yes",
-      WORKING + "/../lm/"+lm+".gz",
+      WORKING + "/../lm/"+lm+".tmp.gz",
+      WORKING + "/../lm/"+lm+".tmp")
+
+    subTask("scripts/remove-zeros.scala",
+      WORKING + "/../lm/"+lm+".tmp",
       WORKING + "/../lm/"+lm)
 
     Do(MOSES_DIR+"/mosesdecoder/bin/build_binary",
