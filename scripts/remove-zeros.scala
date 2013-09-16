@@ -16,7 +16,7 @@ namedTask("Remove Zeros") {
         val score1 = score1str.toDouble
         out.println(math.min(0,score1) + "\t" + word)
       }
-      case _ => println(line.trim())
+      case _ => out.println(line.trim())
     }
   }
 }
