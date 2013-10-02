@@ -16,7 +16,9 @@ implicit def sumScores(l1 : Array[Double]) = new {
   })
   def /(v : Double) = l1 map (_ / v)
 }
+System.err.println("Opening output")
 val out = opts.openOutput(rotOut)
+System.err.println("Opening input" + rotIn.getPath())
 for(line <- opts.openInput(rotIn).getLines) {
   val Array(f,t,s) = line.split(" \\|\\|\\| ")
   if(f != lastF && t != lastT) {

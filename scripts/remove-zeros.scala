@@ -1,12 +1,16 @@
 import java.lang.{Math => math}
 val lex = opts.roFile("LM","The language model")
-val out = opts.outFileOrStdout()
+val lexName = lex.getPath()
+val outFile = opts.woFile("out","The langauge model to write to")
+val outName = outFile.getPath()
 
 opts.verify
 
 namedTask("Remove Zeros") {
-  for(line <- io.Source.fromFile(lex).getLines) {
+  val out = new java.io.PrintWriter(outName)
+  for(line <- io.Source.fromFile(new java.io.File(lexName)).getLines) {
     line.split("\t") match {
+      case null => System.err.println("Null line")
       case Array(score1str,word,score2str) => {
         val score1 = score1str.toDouble
         val score2 = score2str.toDouble
@@ -19,4 +23,7 @@ namedTask("Remove Zeros") {
       case _ => out.println(line.trim())
     }
   }
+  out.flush
+  out.close
+  System.err.println(out.toString)
 }

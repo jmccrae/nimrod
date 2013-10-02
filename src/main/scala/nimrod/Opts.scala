@@ -161,6 +161,7 @@ class Opts(args : Seq[String]) {
             return System.out;
         } else {
             val file = new File(_args.get(0));
+            System.err.println("File: " + file.getPath())
             if (file.exists() && requireFilesExist && !file.canWrite()) {
                 arg.message = "Cannot access [" + file.getPath() + "] for out";
                 succeeded = false;

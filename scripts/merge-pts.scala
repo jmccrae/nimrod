@@ -6,10 +6,13 @@ val ptIn = opts.roFile("phrase-table","The phrase table to merge")
 val lexe2f = opts.roFile("lex.e2f","The lexical weights e2f")
 val lexf2e = opts.roFile("lex.f2e","The lexical weights f2e")
 val outFile = opts.woFile("out","Where to write the new phrase table to")
+opts.restAsSystemProperties
 opts.verify
 
+val cacheSize = System.getProperty("cacheSize","1048576").toInt
+
 namedTask("Merge PT") {
-  val db = org.mapdb.DBMaker.newTempFileDB().cacheSize(1048576).make() 
+  val db = org.mapdb.DBMaker.newTempFileDB().cacheSize(cacheSize).make() 
 
   var lastForeign = ""
   var lastTranslation = ""
@@ -108,7 +111,11 @@ namedTask("Merge PT") {
         score *= s
       }
     }
-    score.toString
+    if(score.isInfinite || score.isNaN) {
+      "1e-8"
+    } else {
+      score.toString
+    }
   }
 
   val mosesline = "(.*) \\|\\|\\| (.*) \\|\\|\\| (.*) \\|\\|\\| (.*) \\|\\|\\| (\\d+) (\\d+) (\\d+)".r
@@ -150,6 +157,8 @@ namedTask("Merge PT") {
     }
   }
   System.err.println()
+  out.flush()
+  out.close()
 
   db.close()
 }

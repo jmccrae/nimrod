@@ -9,7 +9,7 @@ opts.verify
 val l1 = List(l1tmp,l2tmp).min
 val l2 = List(l1tmp,l2tmp).max
 val WORKING = System.getProperty("working",System.getProperty("user.dir") + "/working/" + l1 + "-" + l2)
-val heads = 4
+val heads = System.getProperty("heads","4").toInt
 val MOSES_DIR = System.getProperty("mosesDir",System.getProperty("user.home")+"/moses")
 val CDEC_DIR = System.getProperty("cdecDir",System.getProperty("user.home")+"/cdec")
 val doFilter = System.getProperty("filter","true").toBoolean
@@ -40,8 +40,6 @@ def buildLM(lm : String) {
     mkdir(WORKING + "/../lm").p
 
     Do(MOSES_DIR+"/irstlm/bin/add-start-end.sh") < (WORKING_CORPUS + ".clean." + lm) > (WORKING_CORPUS + ".sb." + lm)
-
-    rm(WORKING + "/../lm/" + lm).ifexists
 
     rm(WORKING + "/../lm/" + lm + ".tmp").ifexists
 
@@ -227,11 +225,11 @@ if(splitSize <= 0) {
 
   cat(find(WORKING)(file => {
     file.getPath() endsWith "/model/reordering-table.wbe-msd-bidirectional-fe.gz"
-  }).apply) > (WORKING + "/model/reordering-table.gz")
+  }).apply) > (WORKING + "/model/reordering-table")
 
   cat(find(WORKING)(file => {
     file.getPath() endsWith "/imodel/reordering-table.wbe-msd-bidirectional-fe.gz"
-  }).apply) > (WORKING + "/imodel/reordering-table.gz")
+  }).apply) > (WORKING + "/imodel/reordering-table")
 
   subTask("scripts/merge-lex.scala",WORKING + "/model/lex.e2f.tmp", nSplits.toString, WORKING + "/model/lex.e2f")
 
@@ -254,14 +252,15 @@ if(splitSize <= 0) {
     WORKING + "/imodel/phrase-table-filtered.gz")
 
   subTask("scripts/merge-rot.scala",
-    WORKING + "/model/reordering-table.gz",
+    WORKING + "/model/reordering-table",
     WORKING + "/model/reordering-table.wbe-msd-bidirectional-fe.gz")
 
   subTask("scripts/merge-rot.scala",
-    WORKING + "/imodel/reordering-table.gz",
+    WORKING + "/imodel/reordering-table",
     WORKING + "/imodel/reordering-table.wbe-msd-bidirectional-fe.gz")
 }
 
+if(mert) {
 Do(MOSES_DIR+"/mosesdecoder/scripts/tokenizer/tokenizer.perl","-l",l1) < ("corpus/dev-%s-%s.%s" % (l1,l2,l1)) > ("corpus/dev-%s-%s.tok.%s" % (l1,l2,l1))
 
 Do(MOSES_DIR+"/mosesdecoder/scripts/recaser/truecase.perl","--model",MOSES_DIR+"/truecaser/truecase."+l1) < ("corpus/dev-%s-%s.tok.%s" %
@@ -272,7 +271,6 @@ Do(MOSES_DIR+"/mosesdecoder/scripts/tokenizer/tokenizer.perl","-l",l2) < ("corpu
 Do(MOSES_DIR+"/mosesdecoder/scripts/recaser/truecase.perl","--model",MOSES_DIR+"/truecaser/truecase."+l2) < ("corpus/dev-%s-%s.tok.%s" %
   (l1,l2,l2)) > ("corpus/dev-%s-%s.true.%s" % (l1,l2,l2))
 
-if(mert) {
 subTask("scripts/write-mosesini.scala",
   WORKING + "/model/moses.ini",
   WORKING + "/model",
@@ -284,7 +282,7 @@ Do(MOSES_DIR+"/mosesdecoder/scripts/training/mert-moses.pl",
   MOSES_DIR+"/mosesdecoder/bin/moses",
   WORKING + "/model/moses.ini",
   "--mertdir",MOSES_DIR+"/mosesdecoder/bin",
-  "--decoder-flags=-threads 4 -s 10") > (WORKING + "/model/mert.out") err (WORKING + "/model/mert.err") dir (WORKING + "/model")
+  "--decoder-flags=-threads "+heads+" -s 10") > (WORKING + "/model/mert.out") err (WORKING + "/model/mert.err") dir (WORKING + "/model")
 }
 
 subTask("scripts/write-mosesini.scala",
@@ -304,7 +302,7 @@ Do(MOSES_DIR+"/mosesdecoder/scripts/training/mert-moses.pl",
   MOSES_DIR+"/mosesdecoder/bin/moses",
   WORKING + "/imodel/moses.ini",
   "--mertdir",MOSES_DIR+"/mosesdecoder/bin",
-  "--decoder-flags=-threads 4 -s 10") > (WORKING + "/imodel/mert.out") err (WORKING + "/imodel/mert.err") dir (WORKING + "/imodel")
+  "--decoder-flags=-threads "+heads+" -s 10") > (WORKING + "/imodel/mert.out") err (WORKING + "/imodel/mert.err") dir (WORKING + "/imodel")
 }
 
 subTask("scripts/write-mosesini.scala",
@@ -330,4 +328,27 @@ Do(MOSES_DIR+"/mosesdecoder/bin/processLexicalTable",
   "-in",WORKING + "/imodel/reordering-table.wbe-msd-bidirectional-fe.gz",
   "-out",WORKING + "/imodel/reordering-table")
 
+def updateMosesIni(fileName : String) {
+  val in = io.Source.fromFile(fileName)
+  val lines = in.getLines.toList
+  in.close
+  val out = new java.io.PrintWriter(fileName)
+  for(line <- lines) {
+    if(line endsWith "phrase-table") {
+      out.println(line + ".bin")
+    } else {
+      out.println(line)
+    }
+  }
+  out.flush
+  out.close
+}
+
+namedTask("update model/moses.ini") {
+  updateMosesIni(WORKING + "/model/moses.ini")
+}
+
+namedTask("update imodel/moses.ini") {
+  updateMosesIni(WORKING + "/imodel/moses.ini")
+}
 
