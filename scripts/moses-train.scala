@@ -134,10 +134,10 @@ def buildTranslationModel(WORKING : String, WORKING_CORPUS : String, LM_DIR : St
     }
 
     if(doFilter) {
-      subTask("scripts/mt/simple-entropy.scala","50",
+      subTask("scripts/mt/simple-entropy.scala","20",
         WORKING+"/model/phrase-table.gz",WORKING+"/model/phrase-table-filtered.gz")
 
-      subTask("scripts/mt/simple-entropy.scala","50",
+      subTask("scripts/mt/simple-entropy.scala","20",
         WORKING+"/imodel/phrase-table.gz",WORKING+"/imodel/phrase-table-filtered.gz")
     }
   }

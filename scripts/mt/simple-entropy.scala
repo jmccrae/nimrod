@@ -6,17 +6,23 @@ opts.verify
 namedTask("Simple Entropy Filter") {
 val out = opts.openOutput(ptOut)
 
+val boost = math.abs(thresh) + 5
+val ALIGN_RATE = 0.5
+
 for(line <- opts.openInput(ptIn).getLines) {
   line.split(" \\|\\|\\| ") match {
-    case Array(f,t,scores,_,counts) => {
+    case Array(f,t,scores,aligns,counts) => {
+      val fTk = f.split(" ").size
+      val tTk = t.split(" ").size
+      val nAligns = aligns.split(" ").size.toDouble
       val Array(pft,lft,ptf,ltf,_) = scores.split(" ")
       val Array(_,_,both) = counts.split(" ")
-      val entropy = if(!(f contains " ") && !(t contains " ")) {
-        both.toDouble * (math.log(pft.toDouble) + 10) // As suggested by Zens et al.
+      val entropy = if(!(f contains " ")) {
+        both.toDouble * (math.log(pft.toDouble) + boost) // As suggested by Zens et al.
       } else {
         both.toDouble * (math.log(pft.toDouble) - math.log(lft.toDouble))
       }
-      if(entropy > thresh) {
+      if(entropy > thresh && nAligns / math.max(fTk,tTk) >= ALIGN_RATE) {
         out.println(line)
       }
     }

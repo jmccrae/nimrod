@@ -3,6 +3,8 @@ val testFile = opts.roFile("testFile","The file to translate")
 val refFile = opts.roFile("refFile","The (reference) translation of the file") 
 val l1 = opts.string("srcLang","The language translating from")
 val l2 = opts.string("trgLang","The langauge translating to")
+val out = opts.woFile("out","The file to write the BLEU scores to")
+val retain = opts.flag("retain","Retain the translation and normalized reference")
 opts.restAsSystemProperties
 opts.verify
 
@@ -24,10 +26,14 @@ Do(MOSES_DIR+"/mosesdecoder/scripts/recaser/truecase.perl","--model",MOSES_DIR+"
 
 Do(MOSES_DIR+"/mosesdecoder/bin/moses","-f",modelFile.getPath()) < (testFile.getPath() + ".true") > (testFile.getPath() + ".trans")
 
-Do(MOSES_DIR+"/mosesdecoder/scripts/generic/multi-bleu.perl","-lc",(refFile.getPath() + ".true")) < (testFile.getPath() + ".trans")
+Do(MOSES_DIR+"/mosesdecoder/scripts/generic/multi-bleu.perl","-lc",(refFile.getPath() + ".true")) < (testFile.getPath() + ".trans") > out
 
 rm(testFile.getPath() + ".tok")
 rm(testFile.getPath() + ".true")
-rm(testFile.getPath() + ".trans")
+if(!retain) {
+  rm(testFile.getPath() + ".trans")
+}
 rm(refFile.getPath() + ".tok")
-rm(refFile.getPath() + ".true")
+if(!retain) {
+  rm(refFile.getPath() + ".true")
+}
