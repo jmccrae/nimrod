@@ -4,11 +4,9 @@ val outFile = opts.woFile("out","Where to write the merged lex files to")
 opts.verify
 
 namedTask("Merge Lex") {
-  var n = 0
   val probs = new java.util.TreeMap[String,Double]()
 
-  val backoff = 0.01
-  var thresh = backoff
+  var thresh = 0.01 / N
 
   val lexline = "(.* .*) (.*)".r
   for(line <- io.Source.fromFile(lex).getLines) {
@@ -41,7 +39,7 @@ namedTask("Merge Lex") {
     val next = iter.next()
     val key = next.getKey()
     val score = next.getValue()
-    out.println(key + " " + (score / n))
+    out.println(key + " " + score)
   }
   out.flush
   out.close

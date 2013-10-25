@@ -62,6 +62,7 @@ namedTask("Merge PT") {
   }
 
   def calculateLex(foreign : String, translation : String, alignment : String, alignDir : Boolean) = {
+    //System.err.println("calculateLex(" + foreign + "," + translation + "," + alignment + ")")
     val ftks = foreign split "\\s+"
     val ttks = translation split "\\s+"
     val as = (alignment split "\\s+" map ({ 
@@ -75,6 +76,7 @@ namedTask("Merge PT") {
     var score = 1.0
 
     for(i <- 0 until ttks.length) {
+      //System.err.println(score)
       val a2 = as.filter(_.a == i)
       val n = a2.size    
       var s = 0.0
@@ -83,13 +85,15 @@ namedTask("Merge PT") {
           val key = ttks(i) + " " + ftks(j)
           if(alignDir) {
             Option(f2eProb.get(key)) match {
-              case Some(p) => s += p / n
-              case None => // noop
+              case Some(p) => { //System.err.println("p=" + p + ",n=" + n) ; 
+              s += p / n}
+              case None => //System.err.println("No key: " + key)// noop
             }
           } else {
             Option(e2fProb.get(key)) match {
-              case Some(p) => s += p / n
-              case None => // noop
+              case Some(p) => { //System.err.println("p=" + p + ",n=" + n) ; 
+              s += p / n }
+              case None => //System.err.println("No key: " + key)// noop
             }
           }
         }
@@ -98,12 +102,12 @@ namedTask("Merge PT") {
         if(alignDir) {
           Option(f2eProb.get(key)) match {
             case Some(p) => s += p
-            case None => // noop
+            case None => //System.err.println("No key: " + key)// noop
           }
         } else {
           Option(e2fProb.get(key)) match {
             case Some(p) => s += p
-            case None => // noop
+            case None => //System.err.println("No key: " + key)// noop
           }
         }
       }
@@ -111,6 +115,7 @@ namedTask("Merge PT") {
         score *= s
       }
     }
+    //System.err.println("score: " + score)
     if(score.isInfinite || score.isNaN) {
       "1e-8"
     } else {
