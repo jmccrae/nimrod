@@ -61,6 +61,8 @@ namedTask("Merge PT") {
     }
   }
 
+  val OOV_ALIGN_PENALTY = 1e-8
+
   def calculateLex(foreign : String, translation : String, alignment : String, alignDir : Boolean) = {
     //System.err.println("calculateLex(" + foreign + "," + translation + "," + alignment + ")")
     val ftks = foreign split "\\s+"
@@ -113,6 +115,8 @@ namedTask("Merge PT") {
       }
       if(s != 0.0) {
         score *= s
+      } else {
+        score *= OOV_ALIGN_PENALTY
       }
     }
     //System.err.println("score: " + score)
