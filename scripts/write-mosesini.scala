@@ -26,7 +26,7 @@ out.println("""#########################
 [ttable-file]
 """ +(
   if(forMert) {
-    "0 0 0 5 " + prefix + "/phrase-table.gz"
+    "0 0 0 5 " + prefix + "/phrase-table-filtered.gz"
   } else {
     "1 0 0 5 " + prefix + "/phrase-table"
   }) + """

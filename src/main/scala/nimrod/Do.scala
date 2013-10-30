@@ -54,7 +54,7 @@ class Do(args : List[String]) extends Task {
         c.start()
       }
     }
-     stderr match {
+    stderr match {
       case Some(file) => {
         val c = new Connector(proc.getErrorStream(),new FileOutputStream(file),true)
         connectors ::= c

@@ -2,7 +2,8 @@ val l1tmp = opts.string("srcLang","The source language")
 val l2tmp = opts.string("trgLang","The target langauge")
 val splitSize = opts.intValue("l","The number of lines for each split (<= 0 for no split)",-1)
 val resume = opts.flag("resume","Resume based on previous state")
-val mert = opts.flag("mert","Tune using MERT")
+val mert = !opts.flag("nomert","Do not tune using MERT")
+val clean = !opts.flag("noclean","Do not clean on completion")
 opts.restAsSystemProperties
 opts.verify
 
@@ -19,48 +20,59 @@ if(!resume) {
   mkdir(WORKING).p
 
   gunzip("corpus/corpus-%s-%s.%s.gz" % (l1,l2,l1))
-  Do(MOSES_DIR+"/mosesdecoder/scripts/tokenizer/tokenizer.perl","-l",l1) < ("corpus/corpus-%s-%s.%s" % (l1,l2,l1)) > ("corpus/corpus-%s-%s.tok.%s" % (l1,l2,l1))
+  Do(MOSES_DIR+"/mosesdecoder/scripts/tokenizer/tokenizer.perl","-l",l1) < ("corpus/corpus-%s-%s.%s" % (l1,l2,l1)) > (WORKING + "/corpus-%s-%s.tok.%s" % (l1,l2,l1))
+  rm("corpus/corpus-%s-%s.%s" % (l1,l2,l1))
+
   checkExists(MOSES_DIR+"/truecaser/truecase."+l1)
-  Do(MOSES_DIR+"/mosesdecoder/scripts/recaser/truecase.perl","--model",MOSES_DIR+"/truecaser/truecase."+l1) < ("corpus/corpus-%s-%s.tok.%s" % (l1,l2,l1)) > ("corpus/corpus-%s-%s.true.%s" % (l1,l2,l1))
+  Do(MOSES_DIR+"/mosesdecoder/scripts/recaser/truecase.perl","--model",MOSES_DIR+"/truecaser/truecase."+l1) < (WORKING +
+    "/corpus-%s-%s.tok.%s" % (l1,l2,l1)) > (WORKING + "/corpus-%s-%s.true.%s" % (l1,l2,l1))
 
   gunzip("corpus/corpus-%s-%s.%s.gz" % (l1,l2,l2))
-  Do(MOSES_DIR+"/mosesdecoder/scripts/tokenizer/tokenizer.perl","-l",l2) < ("corpus/corpus-%s-%s.%s" % (l1,l2,l2)) > ("corpus/corpus-%s-%s.tok.%s" % (l1,l2,l2))
+  Do(MOSES_DIR+"/mosesdecoder/scripts/tokenizer/tokenizer.perl","-l",l2) < ("corpus/corpus-%s-%s.%s" % (l1,l2,l2)) > (WORKING + "/corpus-%s-%s.tok.%s" % (l1,l2,l2))
+  rm("corpus/corpus-%s-%s.%s" % (l1,l2,l2))
+
   checkExists(MOSES_DIR+"/truecaser/truecase."+l2)
-  Do(MOSES_DIR+"/mosesdecoder/scripts/recaser/truecase.perl","--model",MOSES_DIR+"/truecaser/truecase."+l2) < ("corpus/corpus-%s-%s.tok.%s" % (l1,l2,l2)) > ("corpus/corpus-%s-%s.true.%s" % (l1,l2,l2))
+  Do(MOSES_DIR+"/mosesdecoder/scripts/recaser/truecase.perl","--model",MOSES_DIR+"/truecaser/truecase."+l2) < (WORKING +
+    "/corpus-%s-%s.tok.%s" % (l1,l2,l2)) > (WORKING + "/corpus-%s-%s.true.%s" % (l1,l2,l2))
 
   Do(MOSES_DIR+"/mosesdecoder/scripts/training/clean-corpus-n.perl",
-    "corpus/corpus-%s-%s.true" % (l1,l2),
+    WORKING + "/corpus-%s-%s.true" % (l1,l2),
     l1,l2,WORKING + "/corpus-%s-%s.clean" % (l1,l2),"1","80")
 }
 val WORKING_CORPUS = WORKING + "/corpus-%s-%s" % (l1,l2)
 
 
 def buildLM(lm : String) {
-  if(!resume || !new File(WORKING + "/../lm/"+lm).exists) {
-    mkdir(WORKING + "/../lm").p
+  if(!resume || !new File(WORKING + "/lm/"+lm).exists) {
+    mkdir(WORKING + "/lm").p
 
     Do(MOSES_DIR+"/irstlm/bin/add-start-end.sh") < (WORKING_CORPUS + ".clean." + lm) > (WORKING_CORPUS + ".sb." + lm)
 
-    rm(WORKING + "/../lm/" + lm + ".tmp").ifexists
+    rm(WORKING + "/lm/" + lm + ".tmp").ifexists
 
     Do(MOSES_DIR+"/irstlm/bin/build-lm.sh",
       "-i",WORKING_CORPUS + ".sb." + lm,
-      "-t","tmp",
+      "-t","lm_tmp_directory",
       "-p","-s","improved-kneser-ney",
-      "-o",WORKING + "/../lm/" + lm+".tmp").env("IRSTLM",MOSES_DIR+"/irstlm")
+      "-o",WORKING + "/lm/" + lm+".tmp").env("IRSTLM",MOSES_DIR+"/irstlm")
 
     Do (MOSES_DIR+"/irstlm/bin/compile-lm",
       "--text","yes",
-      WORKING + "/../lm/"+lm+".tmp.gz",
-      WORKING + "/../lm/"+lm+".tmp")
+      WORKING + "/lm/"+lm+".tmp.gz",
+      WORKING + "/lm/"+lm+".tmp")
 
     subTask("scripts/remove-zeros.scala",
-      WORKING + "/../lm/"+lm+".tmp",
-      WORKING + "/../lm/"+lm)
+      WORKING + "/lm/"+lm+".tmp",
+      WORKING + "/lm/"+lm)
 
     Do(MOSES_DIR+"/mosesdecoder/bin/build_binary",
-      WORKING + "/../lm/"+lm,
-      WORKING + "/../lm/"+lm+".bin")
+      WORKING + "/lm/"+lm,
+      WORKING + "/lm/"+lm+".bin")
+
+    if(clean) {
+      rm(WORKING + "/lm/" + lm + ".tmp").ifexists
+      rm(WORKING + "/lm/" + lm + ".tmp.gz").ifexists
+    }
   }
   //}
 }  
@@ -144,7 +156,7 @@ def buildTranslationModel(WORKING : String, WORKING_CORPUS : String, LM_DIR : St
 }
 
 if(splitSize <= 0) {
-  buildTranslationModel(WORKING,WORKING_CORPUS+".clean",WORKING + "/../lm/")
+  buildTranslationModel(WORKING,WORKING_CORPUS+".clean",WORKING + "/lm/")
 } else {
   val nSplits = (wc("corpus/corpus-%s-%s.%s.gz" % (l1,l2,l1)).toDouble / splitSize).ceil.toInt
 
@@ -157,7 +169,11 @@ if(splitSize <= 0) {
 
   namedTask("Preparing splits") {
     val l = (WORKING + "/").ls filter (_.matches("\\d+"))
-    val groups = (l grouped l.size/heads).toList
+    val groups = if(l.size >= heads) {
+      (l grouped l.size/heads).toList
+    } else {
+      Nil
+    }
     val tail = l.size - l.size / heads * heads
     println("===SHARDS===")
     for(i <- 1 to heads) {
@@ -175,7 +191,7 @@ if(splitSize <= 0) {
 
   threadPool(heads,"Build Translation Model")( i => {
       for(splitWorking <- get("HEAD"+i).split(" ")) {
-        buildTranslationModel(splitWorking, splitWorking + "/corpus", WORKING + "/../lm/")
+        buildTranslationModel(splitWorking, splitWorking + "/corpus", WORKING + "/lm/")
       }
   })
 
@@ -231,6 +247,10 @@ if(splitSize <= 0) {
     file.getPath() endsWith "/imodel/reordering-table.wbe-msd-bidirectional-fe.gz"
   }).apply) > (WORKING + "/imodel/reordering-table")
 
+  sort(WORKING + "/model/reordering-table") > (WORKING + "/model/reordering-table.sorted")
+
+  sort(WORKING + "/imodel/reordering-table") > (WORKING + "/imodel/reordering-table.sorted")
+
   subTask("scripts/merge-lex.scala",WORKING + "/model/lex.e2f.tmp", nSplits.toString, WORKING + "/model/lex.e2f")
 
   subTask("scripts/merge-lex.scala",WORKING + "/model/lex.f2e.tmp", nSplits.toString, WORKING + "/model/lex.f2e")
@@ -252,63 +272,110 @@ if(splitSize <= 0) {
     WORKING + "/imodel/phrase-table-filtered.gz")
 
   subTask("scripts/merge-rot.scala",
-    WORKING + "/model/reordering-table",
+    WORKING + "/model/reordering-table.sorted",
+    WORKING + "/model/phrase-table-filtered.gz",
     WORKING + "/model/reordering-table.wbe-msd-bidirectional-fe.gz")
 
   subTask("scripts/merge-rot.scala",
-    WORKING + "/imodel/reordering-table",
+    WORKING + "/imodel/reordering-table.sorted",
+    WORKING + "/imodel/phrase-table-filtered.gz",
     WORKING + "/imodel/reordering-table.wbe-msd-bidirectional-fe.gz")
+
+  if(clean) {
+    for(i <- 1 to nSplits) {
+      rm(WORKING + "/" + i).ifexists.r
+    }
+  }
+}
+
+if(clean) {
+  rm(WORKING + ("/corpus-%s-%s.clean.%s" % (l1,l2,l1))).ifexists
+  rm(WORKING + ("/corpus-%s-%s.clean.%s" % (l1,l2,l2))).ifexists
+  rm(WORKING + ("/corpus-%s-%s.sb.%s" % (l1,l2,l1))).ifexists
+  rm(WORKING + ("/corpus-%s-%s.sb.%s" % (l1,l2,l2))).ifexists
+  rm(WORKING + ("/corpus-%s-%s.tok.%s" % (l1,l2,l1))).ifexists
+  rm(WORKING + ("/corpus-%s-%s.tok.%s" % (l1,l2,l2))).ifexists
+  rm(WORKING + ("/corpus-%s-%s.true.%s" % (l1,l2,l1))).ifexists
+  rm(WORKING + ("/corpus-%s-%s.true.%s" % (l1,l2,l2))).ifexists
+  rm(WORKING + "/model/aligned-grow-diag-final-and").ifexists
+  rm(WORKING + "/model/extract.inv.sorted.gz").ifexists
+  rm(WORKING + "/model/extract.o.sorted.gz").ifexists
+  rm(WORKING + "/model/extract.sorted.gz").ifexists
+  rm(WORKING + "/model/lex.e2f").ifexists
+  rm(WORKING + "/model/lex.e2f.tmp").ifexists
+  rm(WORKING + "/model/lex.f2e").ifexists
+  rm(WORKING + "/model/lex.f2e.tmp").ifexists
+  rm(WORKING + "/model/phrase-table-all").ifexists
+  rm(WORKING + "/model/phrase-table.gz").ifexists
+  rm(WORKING + "/model/phrase-table-sorted.gz").ifexists
+  rm(WORKING + "/model/phrase-table-sorted").ifexists
+  rm(WORKING + "/model/reordering-table.sorted").ifexists
+  rm(WORKING + "/model/reordering-table").ifexists
+  rm(WORKING + "/imodel/aligned-grow-diag-final-and").ifexists
+  rm(WORKING + "/imodel/extract.inv.sorted.gz").ifexists
+  rm(WORKING + "/imodel/extract.o.sorted.gz").ifexists
+  rm(WORKING + "/imodel/extract.sorted.gz").ifexists
+  rm(WORKING + "/imodel/lex.e2f").ifexists
+  rm(WORKING + "/imodel/lex.e2f.tmp").ifexists
+  rm(WORKING + "/imodel/lex.f2e").ifexists
+  rm(WORKING + "/imodel/lex.f2e.tmp").ifexists
+  rm(WORKING + "/imodel/phrase-table-all").ifexists
+  rm(WORKING + "/imodel/phrase-table.gz").ifexists
+  rm(WORKING + "/imodel/phrase-table-sorted.gz").ifexists
+  rm(WORKING + "/imodel/phrase-table-sorted").ifexists
+  rm(WORKING + "/imodel/reordering-table.sorted").ifexists
+  rm(WORKING + "/imodel/reordering-table").ifexists
 }
 
 if(mert) {
-Do(MOSES_DIR+"/mosesdecoder/scripts/tokenizer/tokenizer.perl","-l",l1) < ("corpus/dev-%s-%s.%s" % (l1,l2,l1)) > ("corpus/dev-%s-%s.tok.%s" % (l1,l2,l1))
+  Do(MOSES_DIR+"/mosesdecoder/scripts/tokenizer/tokenizer.perl","-l",l1) < ("corpus/dev-%s-%s.%s" % (l1,l2,l1)) > (WORKING + "/dev-%s-%s.tok.%s" % (l1,l2,l1))
 
-Do(MOSES_DIR+"/mosesdecoder/scripts/recaser/truecase.perl","--model",MOSES_DIR+"/truecaser/truecase."+l1) < ("corpus/dev-%s-%s.tok.%s" %
-  (l1,l2,l1)) > ("corpus/dev-%s-%s.true.%s" % (l1,l2,l1))
+  Do(MOSES_DIR+"/mosesdecoder/scripts/recaser/truecase.perl","--model",MOSES_DIR+"/truecaser/truecase."+l1) < (WORKING + "/dev-%s-%s.tok.%s" %
+    (l1,l2,l1)) > (WORKING + "/dev-%s-%s.true.%s" % (l1,l2,l1))
 
-Do(MOSES_DIR+"/mosesdecoder/scripts/tokenizer/tokenizer.perl","-l",l2) < ("corpus/dev-%s-%s.%s" % (l1,l2,l2)) > ("corpus/dev-%s-%s.tok.%s" % (l1,l2,l2))
+  Do(MOSES_DIR+"/mosesdecoder/scripts/tokenizer/tokenizer.perl","-l",l2) < ("corpus/dev-%s-%s.%s" % (l1,l2,l2)) > (WORKING + "/dev-%s-%s.tok.%s" % (l1,l2,l2))
 
-Do(MOSES_DIR+"/mosesdecoder/scripts/recaser/truecase.perl","--model",MOSES_DIR+"/truecaser/truecase."+l2) < ("corpus/dev-%s-%s.tok.%s" %
-  (l1,l2,l2)) > ("corpus/dev-%s-%s.true.%s" % (l1,l2,l2))
+  Do(MOSES_DIR+"/mosesdecoder/scripts/recaser/truecase.perl","--model",MOSES_DIR+"/truecaser/truecase."+l2) < (WORKING + "/dev-%s-%s.tok.%s" %
+    (l1,l2,l2)) > (WORKING + "/dev-%s-%s.true.%s" % (l1,l2,l2))
+
+  subTask("scripts/write-mosesini.scala",
+    WORKING + "/model/moses.ini",
+    WORKING + "/model",
+    WORKING + "/lm/" + l1,"-forMert")
+
+  Do(MOSES_DIR+"/mosesdecoder/scripts/training/mert-moses.pl",
+    WORKING + "/dev-%s-%s.true.%s" % (l1,l2,l1),
+    WORKING + "/dev-%s-%s.true.%s" % (l1,l2,l2),
+    MOSES_DIR+"/mosesdecoder/bin/moses",
+    WORKING + "/model/moses.ini",
+    "--mertdir",MOSES_DIR+"/mosesdecoder/bin",
+    "--decoder-flags=-threads "+heads+" -s 10") > (WORKING + "/model/mert.out") err (WORKING + "/model/mert.err") dir (WORKING + "/model")
+}
 
 subTask("scripts/write-mosesini.scala",
   WORKING + "/model/moses.ini",
   WORKING + "/model",
-  WORKING + "/../lm/" + l1,"-forMert")
-
-Do(MOSES_DIR+"/mosesdecoder/scripts/training/mert-moses.pl",
-  pwd + "/corpus/dev-%s-%s.true.%s" % (l1,l2,l1),
-  pwd + "/corpus/dev-%s-%s.true.%s" % (l1,l2,l2),
-  MOSES_DIR+"/mosesdecoder/bin/moses",
-  WORKING + "/model/moses.ini",
-  "--mertdir",MOSES_DIR+"/mosesdecoder/bin",
-  "--decoder-flags=-threads "+heads+" -s 10") > (WORKING + "/model/mert.out") err (WORKING + "/model/mert.err") dir (WORKING + "/model")
-}
-
-subTask("scripts/write-mosesini.scala",
-  WORKING + "/model/moses.ini",
-  WORKING + "/model",
-  WORKING + "/../lm/" + l1)
+  WORKING + "/lm/" + l1 + ".bin")
 
 if(mert) {
-subTask("scripts/write-mosesini.scala",
-  WORKING + "/imodel/moses.ini",
-  WORKING + "/imodel",
-  WORKING + "/../lm/" + l1,"-forMert")
+  subTask("scripts/write-mosesini.scala",
+    WORKING + "/imodel/moses.ini",
+    WORKING + "/imodel",
+    WORKING + "/lm/" + l1,"-forMert")
 
-Do(MOSES_DIR+"/mosesdecoder/scripts/training/mert-moses.pl",
-  pwd + "/corpus/dev-%s-%s.true.%s" % (l1,l2,l1),
-  pwd + "/corpus/dev-%s-%s.true.%s" % (l1,l2,l2),
-  MOSES_DIR+"/mosesdecoder/bin/moses",
-  WORKING + "/imodel/moses.ini",
-  "--mertdir",MOSES_DIR+"/mosesdecoder/bin",
-  "--decoder-flags=-threads "+heads+" -s 10") > (WORKING + "/imodel/mert.out") err (WORKING + "/imodel/mert.err") dir (WORKING + "/imodel")
+  Do(MOSES_DIR+"/mosesdecoder/scripts/training/mert-moses.pl",
+    WORKING + "/dev-%s-%s.true.%s" % (l1,l2,l1),
+    WORKING + "/dev-%s-%s.true.%s" % (l1,l2,l2),
+    MOSES_DIR+"/mosesdecoder/bin/moses",
+    WORKING + "/imodel/moses.ini",
+    "--mertdir",MOSES_DIR+"/mosesdecoder/bin",
+    "--decoder-flags=-threads "+heads+" -s 10") > (WORKING + "/imodel/mert.out") err (WORKING + "/imodel/mert.err") dir (WORKING + "/imodel")
 }
 
 subTask("scripts/write-mosesini.scala",
   WORKING + "/imodel/moses.ini",
   WORKING + "/imodel",
-  WORKING + "/../lm/" + l2)
+  WORKING + "/lm/" + l2 +".bin")
 
 Do(MOSES_DIR+"/mosesdecoder/bin/processPhraseTable","-ttable","0","0",
   WORKING + "/model/phrase-table-filtered.gz",
@@ -336,6 +403,9 @@ def updateMosesIni(fileName : String) {
   for(line <- lines) {
     if(line endsWith "phrase-table") {
       out.println(line + ".bin")
+    } else if(line endsWith "phrase-table-filtered.gz") {
+      System.err.println("This one!")
+      out.println(line.replace("phrase-table-filtered.gz","phrase-table.bin"))
     } else {
       out.println(line)
     }
@@ -352,3 +422,15 @@ namedTask("update imodel/moses.ini") {
   updateMosesIni(WORKING + "/imodel/moses.ini")
 }
 
+if(clean && mert) {
+  rm(WORKING + ("/dev-%s-%s.tok.%s" % (l1,l2,l1))).ifexists
+  rm(WORKING + ("/dev-%s-%s.tok.%s" % (l1,l2,l2))).ifexists
+  rm(WORKING + ("/dev-%s-%s.true.%s" % (l1,l2,l1))).ifexists
+  rm(WORKING + ("/dev-%s-%s.true.%s" % (l1,l2,l2))).ifexists
+  rm(WORKING + "/model/mert.err").ifexists
+  rm(WORKING + "/model/mert.out").ifexists
+  rm(WORKING + "/model/mert-work").ifexists.r
+  rm(WORKING + "/imodel/mert.err").ifexists
+  rm(WORKING + "/imodel/mert.out").ifexists
+  rm(WORKING + "/imodel/mert-work").ifexists.r
+}

@@ -77,8 +77,9 @@ class Workflow(val name : String) {
       }
       
       println("[\033[0;32m " + (currentStep) + " / " + (tasks.size) + " \033[m] Start: " + task)
-      if(task.exec != 0) {
-        println("[\033[0;31m " + (currentStep) + " / " + (tasks.size) + " \033[m] Failed: " + task)
+      var errorCode = task.exec
+      if(errorCode != 0) {
+        println("[\033[0;31m " + (currentStep) + " / " + (tasks.size) + " \033[m] Failed [" + errorCode + "]: " + task)
         return
       }
       println("[\033[0;32m " + (currentStep) + " / " + (tasks.size) + " \033[m] Finished: " + task)

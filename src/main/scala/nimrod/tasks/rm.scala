@@ -4,17 +4,42 @@ import java.io.File
 
 class rm(file : File) extends Task {
   private var e = false
-  override def exec = if(file.delete() || e) {
+  private var recursive = false
+  override def exec = if(recursive && file.isDirectory()) {
+    if(delTree(file)) {
+      0
+    } else {
+      -1
+    }
+  } else if(file.delete() || e) {
     0
   } else {
     -1
   }
   requires(file)
 
-  def ifexists { 
+  private def delTree(file : File) : Boolean = {
+    for(f <- file.listFiles) {
+      if(f.isDirectory()) {
+        (delTree(f)) || (return false)
+      } else {
+        (f.delete()) || (return false)
+      }
+    }
+    return file.delete()
+  }
+
+  def ifexists = { 
     unrequire(file)
     e = true 
+    this
   }
+
+  def r = {
+    recursive = true
+    this
+  }
+
   override def toString = "rm " + file
 }
 
