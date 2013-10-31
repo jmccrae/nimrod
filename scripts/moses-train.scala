@@ -348,6 +348,7 @@ if(mert) {
     WORKING + "/dev-%s-%s.true.%s" % (l1,l2,l2),
     MOSES_DIR+"/mosesdecoder/bin/moses",
     WORKING + "/model/moses.ini",
+    "--pairwise-ranked",
     "--mertdir",MOSES_DIR+"/mosesdecoder/bin",
     "--decoder-flags=-threads "+heads+" -s 10") > (WORKING + "/model/mert.out") err (WORKING + "/model/mert.err") dir (WORKING + "/model")
 }
@@ -361,13 +362,14 @@ if(mert) {
   subTask("scripts/write-mosesini.scala",
     WORKING + "/imodel/moses.ini",
     WORKING + "/imodel",
-    WORKING + "/lm/" + l1,"-forMert")
+    WORKING + "/lm/" + l2,"-forMert")
 
   Do(MOSES_DIR+"/mosesdecoder/scripts/training/mert-moses.pl",
-    WORKING + "/dev-%s-%s.true.%s" % (l1,l2,l1),
     WORKING + "/dev-%s-%s.true.%s" % (l1,l2,l2),
+    WORKING + "/dev-%s-%s.true.%s" % (l1,l2,l1),
     MOSES_DIR+"/mosesdecoder/bin/moses",
     WORKING + "/imodel/moses.ini",
+    "--pairwise-ranked",
     "--mertdir",MOSES_DIR+"/mosesdecoder/bin",
     "--decoder-flags=-threads "+heads+" -s 10") > (WORKING + "/imodel/mert.out") err (WORKING + "/imodel/mert.err") dir (WORKING + "/imodel")
 }
