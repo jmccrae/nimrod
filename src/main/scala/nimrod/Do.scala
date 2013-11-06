@@ -5,6 +5,7 @@ import java.io._
 class Do(args : List[String]) extends Task {
   private var stdin : Option[File] = None
   private var stdout : Option[File] = None
+  private var stdoutAppend : Boolean = false
   private var stderr : Option[File] = None
   private var _dir : Option[File] = None
   private val envs = collection.mutable.Map[String,String]()
@@ -44,7 +45,7 @@ class Do(args : List[String]) extends Task {
     }
     stdout match {
       case Some(file) => {
-        val c = new Connector(proc.getInputStream(),new FileOutputStream(file),true)
+        val c = new Connector(proc.getInputStream(),new FileOutputStream(file,stdoutAppend),true)
         connectors ::= c
         c.start()
       }
@@ -94,6 +95,19 @@ class Do(args : List[String]) extends Task {
   def >(path : String) =  { 
     val f = new File(path)
     stdout = Some(f)
+    generates(new FileArtifact(f))
+    this 
+  }
+  def >>(file : File) = { 
+    stdout = Some(file)
+    stdoutAppend = true
+    generates(new FileArtifact(file))
+    this 
+  }
+  def >>(path : String) =  { 
+    val f = new File(path)
+    stdout = Some(f)
+    stdoutAppend = true
     generates(new FileArtifact(f))
     this 
   }

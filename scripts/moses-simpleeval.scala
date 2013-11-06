@@ -28,6 +28,8 @@ Do(MOSES_DIR+"/mosesdecoder/bin/moses","-f",modelFile.getPath()) < (testFile.get
 
 Do(MOSES_DIR+"/mosesdecoder/scripts/generic/multi-bleu.perl","-lc",(refFile.getPath() + ".true")) < (testFile.getPath() + ".trans") > out
 
+Do("scala","scripts/mt/word-error-rate.scala","-lc",(refFile.getPath() + ".true")) < (testFile.getPath() + ".trans") >> out
+
 rm(testFile.getPath() + ".tok")
 rm(testFile.getPath() + ".true")
 if(!retain) {
