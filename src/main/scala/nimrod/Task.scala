@@ -3,6 +3,9 @@ package nimrod
 import com.twitter.util.Eval
 import java.io.File
 
+/**
+ * A single task in a workflow
+ */
 trait Task {
   var requirements : List[Artifact] = Nil
   var results : List[Artifact] = Nil

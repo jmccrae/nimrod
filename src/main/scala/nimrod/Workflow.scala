@@ -1,5 +1,8 @@
 package nimrod
 
+/**
+ * Represents the workflow of the script, an implicit instance is available throughout the script
+ */
 class Workflow(val name : String) {
   private var tasks : List[Task] = Nil
   private var block : Option[Block] = None
@@ -103,4 +106,5 @@ class Workflow(val name : String) {
   }
 }
 
+/** Thrown if the workflow could not be executed (not if the execution failed) */
 class WorkflowException(msg : String = null, cause : Exception = null) extends RuntimeException(msg,cause)
