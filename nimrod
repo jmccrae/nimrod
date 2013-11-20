@@ -1,12 +1,14 @@
 #!/bin/bash
 
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
 if [[ $1 == "-cp" ]]
 then 
-    CLASSPATH=target/Nimrod-assembly-0.13.7.jar:lib/\*:$2
+    CLASSPATH=$DIR/target/Nimrod-assembly-0.13.7.jar:$DIR/lib/\*:$2
     shift
     shift
 else
-    CLASSPATH=target/Nimrod-assembly-0.13.7.jar:lib/\*
+    CLASSPATH=$DIR/target/Nimrod-assembly-0.13.7.jar:$DIR/lib/\*
 fi
 
 exec java -cp $CLASSPATH nimrod.Main "$@"
