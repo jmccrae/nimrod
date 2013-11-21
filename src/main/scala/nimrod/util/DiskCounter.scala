@@ -8,10 +8,11 @@ import java.lang.Integer
  * An implementation of a counter that is disk-based and increments (and is thread-safe)
  */
 class DiskCounter[A](sorted : Boolean = false, db : DB = DiskCounter.createDB()) {
+  private val name = math.abs(math.random * 1000000000).toString
   private val theMap = if(sorted) {
-    db.getTreeMap[A,Integer]("map")
+    db.getTreeMap[A,Integer](name)
   } else {
-    db.getHashMap[A,Integer]("map")
+    db.getHashMap[A,Integer](name)
   }
 
   def inc(key : A) = {
