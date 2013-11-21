@@ -33,6 +33,6 @@ class DiskCounter[A](sorted : Boolean = false, db : DB = DiskCounter.createDB())
 }
 
 object DiskCounter {
-  def createDB(cacheSize : Int = 65536) = org.mapdb.DBMaker.newTempFileDB().cacheSize(cacheSize).make()
+  def createDB(cacheSize : Int = 1048576) = org.mapdb.DBMaker.newTempFileDB().cacheSize(cacheSize).cacheLRUEnable().make()
   def closeDB(db : DB) = db.close
 }

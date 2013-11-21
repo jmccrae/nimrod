@@ -1,6 +1,6 @@
 val in = opts.roFile("rdfFile","The input file to extract strings from")
 val out = opts.outFileOrStdout()
-val lang = opts.string("lang",null,"The language to extract, or omit for untagged strings")
+val lang = opts.string("lang","The language to extract, or omit for untagged strings",null)
 opts.verify
 
 val rdfLiteral = java.util.regex.Pattern.compile("\"([^\"]+)\"" + (if(lang != null) { "@" + lang } else { "" }))
