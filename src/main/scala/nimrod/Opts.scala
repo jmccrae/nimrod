@@ -340,7 +340,7 @@ class Opts(args : Seq[String]) {
      * @param description The description of this argument
      * @param defaultValue The default value to use
      */
-    def doubleValue(name : String, defaultValue : Double, description : String) : Double = {
+    def doubleValue(name : String, description : String, defaultValue : Double) : Double = {
         val arg = new Argument(name, name, description, true);
         argObjs.add(arg);
         if (_args.isEmpty()) {
@@ -375,7 +375,7 @@ class Opts(args : Seq[String]) {
      * @param description The description of this argument
      * @param defaultValue The default value to use
      */
-    def enumOptional[T <: Enumeration](name : String, enum : T, defaultValue : T#Value, description : String) : T#Value  = {
+    def enumOptional[T <: Enumeration](name : String, enum : T, description : String, defaultValue : T#Value) : T#Value  = {
         val arg = new Argument(name, name, description, true);
         argObjs.add(arg);
         if (_args.isEmpty()) {
@@ -528,7 +528,7 @@ class Opts(args : Seq[String]) {
      * @param description The description of this argument
      * @param defaultValue The default value to use
      */
-    def string(name : String, defaultValue : String, description : String) : String = {
+    def string(name : String, description : String, defaultValue : String) : String = {
         val arg = new Argument(name, name, description, true);
         argObjs.add(arg);
         if (_args.isEmpty()) {
