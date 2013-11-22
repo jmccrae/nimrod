@@ -21,7 +21,7 @@ class DiskCounter[A](writeInterval : Int = 1000000)(implicit ordering : Ordering
     def act {
       var received = 0
       var done = false
-      while(true) {
+      while(!done) {
         receive {
           case Inc(key) => {
             if(received > writeInterval) {
@@ -60,8 +60,8 @@ class DiskCounter[A](writeInterval : Int = 1000000)(implicit ordering : Ordering
   private val syncActor = new Actor {
     def act {
       var done = false
-      loop {
-        react {
+      while(!done) {
+        receive {
           case Sync(map) => try {
             writeMap(map)
             reply(Unit)
