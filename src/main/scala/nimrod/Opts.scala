@@ -546,6 +546,13 @@ class Opts(args : Seq[String]) {
         }
     }
 
+    def listOfArgs(name : String,description : String) : List[String] = {
+      val arg = new Argument(name + "...",null,description,false)
+      argObjs.add(arg)
+      val list = _args.toList
+      _args.clear()
+      return list
+    }
 /*    public Language language(String name, String description) {
 
         final Argument arg = new Argument(name, null, description, false);
