@@ -35,7 +35,7 @@ class Opts(args : Seq[String]) {
       val ln = System.getProperty("line.separator")
         if (!succeeded || !_args.isEmpty) {
             if (!_args.isEmpty) {
-                message.append("Too many arguments"+ln);
+                message.append("Too many arguments: " + _args.mkString(",") +ln);
             }
             for (argObj <-  argObjs) {
                 if (argObj.message != null && argObj.message != "") {
