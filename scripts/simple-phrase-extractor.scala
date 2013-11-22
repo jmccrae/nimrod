@@ -1,10 +1,10 @@
 import scala.actors.Futures._
 import nimrod.util._
+val inv = opts.flag("inverse","Use the corpus in inverse mode")
+val maxSize = opts.intValue("m","Minimum length",5)
+val acceptanceRate = opts.doubleValue("a","The required percentage of alignment",0.75)
 val alignFile = opts.roFile("alignFile","The file containing symmetrized alignments")
 val corpusFile = opts.roFile("corpus","The corpus file")
-val inv = opts.flag("inverse","Use the corpus in inverse mode")
-val acceptanceRate = opts.doubleValue("a","The required percentage of alignment",0.75)
-val maxSize = opts.intValue("m","Minimum length",5)
 val bothFile = opts.woFile("pairs","The file to write the accepted alignments to")
 val foreignFile = opts.woFile("foreign","The file to write foreign frequencies to")
 val translationFile = opts.woFile("translation","The file to write translation frequencies to")
