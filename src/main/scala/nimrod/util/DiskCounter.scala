@@ -81,7 +81,7 @@ class DiskCounter[A](writeInterval : Int = 1000000)(implicit ordering : Ordering
   private def writeMap(map : TreeMap[A,Integer]) {
     val outFile = File.createTempFile("diskcounter",".bin")
     outFile.deleteOnExit
-    val out = new ObjectOutputStream(new FileOutputStream(outFile))
+    val out = new ObjectOutputStream(new BufferedOutputStream(new FileOutputStream(outFile)))
     out.writeInt(map.size)
     val entryIterator = map.entrySet().iterator()
     while(entryIterator.hasNext) {
@@ -97,7 +97,7 @@ class DiskCounter[A](writeInterval : Int = 1000000)(implicit ordering : Ordering
   }
 
   private class SerializedMapIterator(file : File) extends Iterator[(A,Int)] {
-    val in = new ObjectInputStream(new FileInputStream(file))
+    val in = new ObjectInputStream(new BufferedInputStream(new FileInputStream(file)))
     val _size = in.readInt()
     var read = 0
 

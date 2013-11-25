@@ -26,15 +26,9 @@ case class Alignment(val align : Seq[(Int,Int)]) {
   lazy val rSize = align.map(_._2).toSet.size
 
   def lText(words : Array[String]) = {
-    if(words.size < lMin) {
-      System.err.println(words.mkString(" ") " is not for alignment " + align.mkString(" "))
-    }
     words.slice(lMin,lMax+1).mkString(" ")
   }
   def rText(words : Array[String]) = {
-    if(words.size < lMin) {
-      System.err.println(words.mkString(" ") " is not for alignment " + align.mkString(" "))
-    }
     words.slice(rMin,rMax+1).mkString(" ")
   }
 
@@ -63,6 +57,17 @@ namedTask("Simple phrase extraction") {
       val tSent = (if(inv) { clines(1) } else { clines(0) }) split " "
 
       val aligns = alignFromString(aline)
+      
+      if(fSent.size <= Alignment(aligns).lMax) {
+        System.err.println("%d %d" format (fSent.size, Alignment(aligns).lMax))
+        System.err.println("Alignment out of range: " + fSent.mkString(" ") + " ||| " + aligns.mkString(" "))
+      } 
+ 
+      if(tSent.size <= Alignment(aligns).rMax) {
+        System.err.println("%d %d" format (tSent.size, Alignment(aligns).rMax))
+        System.err.println("Alignment out of range: " + tSent.mkString(" ") + " ||| " + aligns.mkString(" "))
+      } 
+
 
       val allAligns = (0 until aligns.size).toStream flatMap ( a => {
         (a+1 until aligns.size).toStream map {
