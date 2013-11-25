@@ -11,7 +11,7 @@ val translationFile = opts.woFile("translation","The file to write translation f
 
 opts.verify
 
-def alignFromString(astr : String) : Seq[(Int,Int)] = (astr split " " map {
+def alignFromString(astr : String) : Seq[(Int,Int)] = (astr split "\\s+" filter (_ != "") map {
   aelem => aelem split "-" match {
     case Array(a1,a2) => a1.toInt -> a2.toInt
   }
