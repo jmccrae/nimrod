@@ -25,8 +25,18 @@ case class Alignment(val align : Seq[(Int,Int)]) {
   lazy val rMax = align.map(_._2).max
   lazy val rSize = align.map(_._2).toSet.size
 
-  def lText(words : Array[String]) = words.slice(lMin,lMax+1).mkString(" ")
-  def rText(words : Array[String]) = words.slice(rMin,rMax+1).mkString(" ")
+  def lText(words : Array[String]) = {
+    if(words.size < lMin) {
+      System.err.println(words.mkString(" ") " is not for alignment " + align.mkString(" "))
+    }
+    words.slice(lMin,lMax+1).mkString(" ")
+  }
+  def rText(words : Array[String]) = {
+    if(words.size < lMin) {
+      System.err.println(words.mkString(" ") " is not for alignment " + align.mkString(" "))
+    }
+    words.slice(rMin,rMax+1).mkString(" ")
+  }
 
   def normalize = Alignment(align map {
     case (l,r) => (l - lMin,r - rMin)
