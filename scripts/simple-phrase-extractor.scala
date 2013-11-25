@@ -46,6 +46,9 @@ namedTask("Simple phrase extraction") {
   (alignIn zip corpusIn).toStream.par.foreach {
     case (aline,cline) => {
       val clines = cline split " \\|\\|\\| "
+      if(clines.size != 2) {
+        System.err.println("Bad line: " + cline)
+      } else {
       val fSent = (if(inv) { clines(0) } else { clines(1) }) split " "
       val tSent = (if(inv) { clines(1) } else { clines(0) }) split " "
 
@@ -66,6 +69,7 @@ namedTask("Simple phrase extraction") {
         foreignFreq.inc(fPhrase)
         transFreq.inc(tPhrase)
       }        
+      }
     }
   }
   
