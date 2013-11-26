@@ -74,6 +74,7 @@ def extractPhrases(WORKING : String, WORKING_CORPUS : String, LM_DIR : String) =
     "-j",WORKING + "/imodel/rev_align" % (l1,l2)) > (WORKING + "/imodel/aligned.grow-diag-final-and")
 
   subTask("scripts/simple-phrase-extractor.scala",
+    "-inverse",
     WORKING + "/model/aligned.grow-diag-final-and",
     WORKING + "/corpus.train",
     WORKING + "/model/pair.freqs",
@@ -81,7 +82,6 @@ def extractPhrases(WORKING : String, WORKING_CORPUS : String, LM_DIR : String) =
     WORKING + "/model/translation.freqs")
 
   subTask("scripts/simple-phrase-extractor.scala",
-    "-inverse",
     WORKING + "/imodel/aligned.grow-diag-final-and",
     WORKING + "/corpus.train",
     WORKING + "/imodel/pair.freqs",
