@@ -18,22 +18,24 @@ def alignFromString(astr : String) : Seq[(Int,Int)] = (astr split "\\s+" filter 
 }).toSeq
 
 case class Alignment(val align : Seq[(Int,Int)]) {
-  lazy val lMin = align.map(_._1).min
-  lazy val lMax = align.map(_._1).max
-  lazy val lSize = align.map(_._1).toSet.size
-  lazy val rMin = align.map(_._2).min
-  lazy val rMax = align.map(_._2).max
-  lazy val rSize = align.map(_._2).toSet.size
+  lazy val lMin = left.min
+  lazy val lMax = left.max
+  lazy val lSize = left.toSet.size
+  lazy val rMin = right.min
+  lazy val rMax = right.max
+  lazy val rSize = right.toSet.size
+  lazy val left = align.map(_._1)
+  lazy val right = align.map(_._2)
 
   def lText(words : Array[String]) = {
     if(words.size < lMin) {
-      System.err.println(words.mkString(" ") " is not for alignment " + align.mkString(" "))
+      System.err.println(words.mkString(" ") + " is not for alignment " + align.mkString(" "))
     }
     words.slice(lMin,lMax+1).mkString(" ")
   }
   def rText(words : Array[String]) = {
     if(words.size < lMin) {
-      System.err.println(words.mkString(" ") " is not for alignment " + align.mkString(" "))
+      System.err.println(words.mkString(" ") + " is not for alignment " + align.mkString(" "))
     }
     words.slice(rMin,rMax+1).mkString(" ")
   }
@@ -42,6 +44,8 @@ case class Alignment(val align : Seq[(Int,Int)]) {
     case (l,r) => (l - lMin,r - rMin)
   })
 }
+
+def sliceByAlign(strs : Array[String], align : Seq[Int]) = strs.slice(align.min,align.max+1).mkString(" ")
 
 def goodAlign(a : Alignment)  = a.lSize <= maxSize && a.rSize <= maxSize && a.lSize.toDouble / (a.lMax - a.lMin) >= acceptanceRate && a.rSize.toDouble / (a.rMax - a.rMin) >= acceptanceRate
  
@@ -55,30 +59,40 @@ namedTask("Simple phrase extraction") {
 
   (alignIn zip corpusIn).toStream.par.foreach {
     case (aline,cline) => {
+      val leftAligns = collection.mutable.Set[Seq[Int]]()
+      val rightAligns = collection.mutable.Set[Seq[Int]]()
       val clines = cline split " \\|\\|\\| "
       if(clines.size != 2) {
         System.err.println("Bad line: " + cline)
       } else {
-      val fSent = (if(inv) { clines(0) } else { clines(1) }) split " "
-      val tSent = (if(inv) { clines(1) } else { clines(0) }) split " "
+        val fSent = (if(inv) { clines(0) } else { clines(1) }) split " "
+        val tSent = (if(inv) { clines(1) } else { clines(0) }) split " "
 
-      val aligns = alignFromString(aline)
+        val aligns = alignFromString(aline)
 
-      val allAligns = (0 until aligns.size).toStream flatMap ( a => {
-        (a+1 until aligns.size).toStream map {
-          b => Alignment(aligns.slice(a,b))
+        val allAligns = (0 until aligns.size).toStream flatMap ( a => {
+          (a+1 until aligns.size).toStream map {
+            b => Alignment(aligns.slice(a,b))
+          }
+        })
+
+        val goodAligns = allAligns filter { goodAlign(_) }
+
+        val texts = goodAligns map { a => (a.lText(fSent),a.rText(tSent)) }
+
+        for(a <- goodAligns) {
+          phraseFreq.inc((a.lText(fSent),a.rText(tSent)))
+          leftAligns += a.left
+          rightAligns += a.right
+        }        
+
+        for(a <- leftAligns) {
+          foreignFreq.inc(sliceByAlign(fSent,a))
         }
-      })
 
-      val goodAligns = allAligns filter { goodAlign(_) }
-
-      val texts = goodAligns map { a => (a.lText(fSent),a.rText(tSent)) }
-
-      for((fPhrase,tPhrase) <- texts) {
-        phraseFreq.inc((fPhrase,tPhrase))
-        foreignFreq.inc(fPhrase)
-        transFreq.inc(tPhrase)
-      }        
+        for(a <- rightAligns) {
+          transFreq.inc(sliceByAlign(tSent,a))
+        }
       }
     }
   }
