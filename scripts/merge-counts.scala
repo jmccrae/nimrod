@@ -9,7 +9,7 @@ namedTask("Merge counts") {
   while(readers.exists(_.hasNext)) {
     val lines = readers.flatMap(_.peek)
     val keyCounts = lines.map( line => {
-      (line.substring(0,line.indexOf("|||") + 4), line.substring(line.indexOf("|||")+4).toInt)
+      (line.substring(0,line.lastIndexOf("|||") + 4), line.substring(line.lastIndexOf("|||")+4).toInt)
     })
     val minKey = keyCounts.map(_._1).min
     val total = keyCounts.filter(_._1==minKey).map(_._2).sum

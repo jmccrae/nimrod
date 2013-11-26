@@ -50,7 +50,7 @@ namedTask("Simple phrase extraction") {
   (alignIn zip corpusIn).toStream.par.foreach {
     case (aline,cline) => {
       val clines = cline split " \\|\\|\\| "
-      if(clines.size != 2) {
+      if(clines.size != 2 || (aline matches "\\s+")) {
         System.err.println("Bad line: " + cline)
       } else {
       val fSent = (if(inv) { clines(0) } else { clines(1) }) split " "
