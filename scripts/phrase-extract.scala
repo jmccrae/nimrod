@@ -145,8 +145,8 @@ if(splitSize <= 0) {
     ((1 to heads) map { i => WORKING + "/" + i + "/model/translation.freqs" })):_*) 
  
   subTask("scripts/merge-counts.scala",
-    ((WORKING + "/imodel/translation.freqs") +:
-    ((1 to heads) map { i => WORKING + "/" + i + "/imodel/translation.freqs" })):_*) 
+    ((WORKING + "/imodel/pair.freqs") +:
+    ((1 to heads) map { i => WORKING + "/" + i + "/imodel/pair.freqs" })):_*) 
         
   if(clean) {
     for(i <- 1 to nSplits) {

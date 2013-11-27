@@ -28,15 +28,9 @@ case class Alignment(val align : Seq[(Int,Int)]) {
   lazy val right = align.map(_._2)
 
   def lText(words : Array[String]) = {
-    if(words.size < lMin) {
-      System.err.println(words.mkString(" ") + " is not for alignment " + align.mkString(" "))
-    }
     words.slice(lMin,lMax+1).mkString(" ")
   }
   def rText(words : Array[String]) = {
-    if(words.size < lMin) {
-      System.err.println(words.mkString(" ") + " is not for alignment " + align.mkString(" "))
-    }
     words.slice(rMin,rMax+1).mkString(" ")
   }
 
