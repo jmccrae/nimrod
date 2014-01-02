@@ -136,17 +136,26 @@ if(splitSize <= 0) {
     ((WORKING + "/model/pair.freqs") +:
     ((1 to heads) map { i => WORKING + "/" + i + "/model/pair.freqs" })):_*) 
 
+  gzip(WORKING + "/model/pair.freqs")
+
   subTask("scripts/merge-counts.scala",
     ((WORKING + "/model/foreign.freqs") +:
     ((1 to heads) map { i => WORKING + "/" + i + "/model/foreign.freqs" })):_*) 
+
+  gzip(WORKING + "/model/foreign.freqs")
 
   subTask("scripts/merge-counts.scala",
     ((WORKING + "/model/translation.freqs") +:
     ((1 to heads) map { i => WORKING + "/" + i + "/model/translation.freqs" })):_*) 
  
+  gzip(WORKING + "/model/translation.freqs")
+
+
   subTask("scripts/merge-counts.scala",
     ((WORKING + "/imodel/pair.freqs") +:
     ((1 to heads) map { i => WORKING + "/" + i + "/imodel/pair.freqs" })):_*) 
+  
+  gzip(WORKING + "/imodel/pair.freqs")
         
   if(clean) {
     for(i <- 1 to nSplits) {
@@ -166,4 +175,8 @@ if(clean) {
   rm(WORKING + ("/corpus-%s-%s.true.%s" % (l1,l2,l2))).ifexists
   rm(WORKING + "/model/aligned-grow-diag-final-and").ifexists
   rm(WORKING + "/imodel/aligned-grow-diag-final-and").ifexists
+  rm(WORKING + "/model/translation.freqs").ifexists
+  rm(WORKING + "/model/foreign.freqs").ifexists
+  rm(WORKING + "/model/pair.freqs").ifexists
+  rm(WORKING + "/imodel/pair.freqs").ifexists
 }
