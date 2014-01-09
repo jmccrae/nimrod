@@ -1,6 +1,13 @@
 package nimrod
 
 import com.twitter.util.Eval
+import akka.actor._
+import akka.remote._
+import akka.pattern.ask
+import scala.concurrent.Await
+import scala.concurrent.duration.Duration
+import akka.util.Timeout
+import com.typesafe.config.ConfigFactory
 
 object Main {
   private def printUsage = {
@@ -18,7 +25,7 @@ object Main {
           0
         }
       }
-      new NimrodServer(port).start
+      new NimrodEngine().startServer(port)
     } else {
       var args = _args.toList
       if(args.length < 1) {
@@ -26,6 +33,8 @@ object Main {
       }    
       var beginStep = 1
       var listMode = false
+      var server = ""
+      var port = -1
       while(args(0).startsWith("-")) {
         args(0) match {
           case "-s" => {
@@ -36,34 +45,25 @@ object Main {
             listMode = true
             args = args.drop(1)
           }
+          case "-r" => {
+            args(1) split ":" match {
+              case Array(s,p) => {
+                server = s
+                port = p.toInt
+                args = args.drop(2)
+              }
+            }
+          }
           case _ => printUsage
         }
       }
-      val programSB = new StringBuilder()
-      val ln = System.getProperty("line.separator")
-      programSB.append("import nimrod._ ; ")
-      programSB.append("import nimrod.tasks._ ; ")
-      programSB.append("import java.io._ ; ")
-      programSB.append("implicit val workflow = new Workflow(\""+args(0)+"\") ; ")
-      programSB.append("val opts = new Opts(Array[String](" + args.drop(1).map("\""+_+"\"").mkString(",") + ")) ; ")
-      for(line <- io.Source.fromFile(args(0)).getLines) {
-        programSB.append(line + ln)
-      }
-      if(listMode) {
-        programSB.append("workflow.list " + ln)
+      val nimrod = new NimrodEngine()
+      if(port > 0) { // Submit to remote instance
+        nimrod.startRemote(server, port)
       } else {
-        programSB.append("workflow.start(" + beginStep + ")" + ln)
+        nimrod.startLocal()
       }
-      Preprocessor(programSB)
-      try {
-        new Eval()(programSB.toString())
-      } catch {
-        case x : WorkflowException => System.err.println(x.getMessage())
-        case x : Eval.CompilerException => {
-          System.err.println("The scripts has the following errors:")
-          System.err.println(x.getMessage())
-        }
-      }
-    }
+      nimrod.submit(args(0), args.drop(1), listMode, beginStep) 
+}
   }
 }

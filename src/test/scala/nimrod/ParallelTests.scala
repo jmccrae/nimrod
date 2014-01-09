@@ -6,7 +6,7 @@ import org.scalatest._
 
 class ParallelTest extends FlatSpec with matchers.ShouldMatchers {
   "parallel task" should "execute" in {
-    implicit val workflow = new Workflow("parallelTest")
+    implicit val workflow = new Workflow("parallelTest", "test")
     threadPool(3,"test") (i => {
         mkdir("tmp"+i)
     })

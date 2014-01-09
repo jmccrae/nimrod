@@ -1,69 +1,166 @@
 package nimrod
 
-import java.io._
-import java.net._
+import akka.actor._
+import akka.remote.RemoteScope
+import com.typesafe.config.ConfigFactory
+import com.twitter.util.Eval
 
-class NimrodServer(port : Int) {
+case class NimrodTaskSubmission(name : String, program : String, args : List[String], listMode : Boolean, beginStep : Int)
+case class NimrodOutput(message : String)
+case class NimrodError(message : String)
+case class NimrodBeginTask()
+case class NimrodEndTask()
+object BounceToMe
 
-  def start = {
-    val serverSocket = new ServerSocket(port)
-    System.err.println("Nimrod server listening on port %d" format port)
-    while(true) {
-      val socket = serverSocket.accept()
-      new Thread(new NimrodServerThread(socket)).start()
-    }
-  }
+class NimrodServerActor extends Actor {
+  private var returns = collection.mutable.Map[String, ActorRef]()
+  def genkey = scala.util.Random.nextInt.toHexString
 
-  def handle(command : String, out : PrintStream, in : ControlledInputStream) = command match {
-    case "EXIT" => System.exit(-1)
-    case _ => out.println("Unrecognized command")
-  }
-  
-  private class NimrodServerThread(socket : Socket) extends Runnable {
-    def run = {
-      val out = new PrintStream(new ControlledOutputStream(socket.getOutputStream))
-      val in = new ControlledInputStream(socket.getInputStream)
-      val bb = new collection.mutable.ListBuffer[Byte]()
-      var b : Int = 0
-      while({b = in.read() ; b != -1}) {
-        if(b == -2) {
-          handle(new String(bb.toArray),out,in)
-        } else {
-          bb.append(b.toByte)
+  def receive = {
+    case NimrodTaskSubmission(name, program, args, listMode, beginStep) => {
+      val programSB = new StringBuilder()
+      val key = genkey
+
+      System.err.println(program)
+      
+      val ln = System.getProperty("line.separator")
+      programSB.append("import nimrod._ ; ")
+      programSB.append("import nimrod.tasks._ ; ")
+      programSB.append("import java.io._ ; ")
+      programSB.append("implicit val workflow = new Workflow(\""+name+"\",\""+key+"\") ; ")
+      programSB.append("val opts = new Opts(Array[String](" + args.map("\""+_+"\"").mkString(",") + ")) ; ")
+      programSB.append(program + ln)
+      programSB.append("workflow")
+      Preprocessor(programSB)
+      val workflow = try {
+        new Eval()(programSB.toString()).asInstanceOf[Workflow]
+      } catch {
+        case x : WorkflowException => System.err.println(x.getMessage())
+        case x : Eval.CompilerException => {
+          System.err.println("The scripts has the following errors:")
+          System.err.println(x.getMessage())
         }
       }
-      out.flush
-      socket.close
-    }
-  }
-}
-
-class ControlledOutputStream(base : OutputStream) extends OutputStream {
-  def write(b : Int) = {
-    if(b == 120) {
-      base.write(b)
-      base.write(b)
-    } else {
-      base.write(b)
-    }
-  }
-
-  def eos = {
-    base.write(120)
-    base.write(121)
-  }
-}
-
-class ControlledInputStream(base : InputStream) extends InputStream {
-  def read() = {
-    base.read() match {
-      case 120 => base.read() match {
-        case 121 => -2
-        case 120 => 120
-        case -1 => -1
-        case _ => throw new IOException("Invalid control character")
+      val workflowActor = context.actorOf(Props(classOf[WorkflowActor], workflow), "workflow")
+      if(listMode) {
+        workflowActor ! ListTasks
+      } else {
+        workflowActor ! StartWorkflow(beginStep)
       }
-      case b => b
+      returns += key -> sender
+    }
+    case WorkflowNotStarted(key, msg) => {
+      returns.get(key) match {
+        case Some(actor) => actor ! WorkflowNotStarted(key, msg)
+        case None => System.err.println("Could not send message to actor")
+      }
+    }
+    case Completion(key) => {
+      returns.get(key) match {
+        case Some(actor) => {
+          actor ! Completion(key)
+          returns -= key
+        }
+        case None => {
+          System.err.println("Could not send completion to actor " + key)
+        }
+      }
+    }
+    case BounceToMe => // noop
+  }
+}
+
+class NimrodLocalActor(server : String, port : Int) extends Actor {
+  val remote = context.actorSelection("akka.tcp://nimrod@"+server+":"+port+"/user/server")
+  var bounce : Option[ActorRef] = None
+  def receive = {
+    case s : NimrodTaskSubmission => remote ! s
+    case Completion(key) => {
+      context.system.shutdown()
+    }
+    case BounceToMe => {
+      bounce = Some(sender)
+    }
+    case msg : KeyedMessage => {
+      bounce.map(_ ! msg)
     }
   }
 }
+
+class NimrodCLIActor(server : ActorRef) extends Actor {
+  def receive = {
+    case s : NimrodTaskSubmission => {
+      server ! BounceToMe
+      server ! s
+    }
+    case Completion(key) => {
+      context.system.shutdown()
+    }
+    case WorkflowNotStarted(key, msg) => {
+      System.err.println(msg)
+    }
+  }
+}
+
+class NimrodEngine {
+  private var system : ActorSystem = null
+  private var actor : ActorRef = null
+
+  def startServer(port : Int) {
+    val conf = ConfigFactory.parseString("""akka {
+  log-dead-letters-during-shutdown = false
+  actor {
+    provider = "akka.remote.RemoteActorRefProvider"
+  }
+  remote {
+    transport = "akka.remote.netty.NettyRemoteTransport"
+    netty.tcp {
+      hostname = "127.0.0.1"
+      port = """ + port + """
+    }
+  }
+}""")
+
+    system = ActorSystem("nimrod", ConfigFactory.load(conf))
+
+    actor = system.actorOf(Props[NimrodServerActor], "server")
+  }
+
+  def startLocal() {
+    system = ActorSystem("nimrod")
+
+    actor = system.actorOf(Props[NimrodServerActor], "local")
+  }
+
+  def startRemote(server : String, port : Int) {
+    system = ActorSystem("local", ConfigFactory.load(ConfigFactory.parseString("""
+akka {
+  actor.provider = "akka.remote.RemoteActorRefProvider"
+  remote.transport = "akka.remote.netty.NettyRemoteTransport"
+  remote.netty.tcp.hostname = "127.0.0.1"
+  remote.netty.tcp.port = 0 
+  log-dead-letters-during-shutdown = false
+}""")))
+    
+    actor = system.actorOf(Props(classOf[NimrodLocalActor],server,port), "remoter")
+  }
+
+  def submit(name : String, args : List[String], listMode : Boolean, beginStep : Int) = {
+    require(system != null)
+    val cliActor = system.actorOf(Props(classOf[NimrodCLIActor], actor), "cli")
+    val programSB = new StringBuffer()
+    val ln = System.getProperty("line.separator")
+    for(line <- io.Source.fromFile(name).getLines()) {
+      programSB.append(line + ln)
+    }
+    cliActor ! NimrodTaskSubmission(name, programSB.toString(), args, listMode, beginStep)
+  }
+
+  def stopServer {
+    if(system != null) {
+      system.shutdown()
+    }
+  }
+}
+    
+

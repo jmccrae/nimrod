@@ -6,7 +6,7 @@ import nimrod.tasks._
 
 class checkExistsTest extends FlatSpec with matchers.ShouldMatchers {
   "checkExists" should "fail if file does not exist" in {
-    implicit val workflow = new Workflow("checkExists")
+    implicit val workflow = new Workflow("checkExists","test")
 
     checkExists("no-such-file")
 
@@ -14,7 +14,7 @@ class checkExistsTest extends FlatSpec with matchers.ShouldMatchers {
   }
 
   "checkExists" should "not fail if the file exists" in {
-    implicit val workflow = new Workflow("checkExists")
+    implicit val workflow = new Workflow("checkExists","test")
 
     checkExists("build.sbt")
 

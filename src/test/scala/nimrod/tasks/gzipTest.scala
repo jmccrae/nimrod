@@ -17,7 +17,7 @@ class gzipTest extends FlatSpec {
     out.flush
     out.close
 
-    implicit val workflow = new Workflow("gzipTests")
+    implicit val workflow = new Workflow("gzipTests","test")
 
     gzip(f)
     gunzip(f+".gz")
