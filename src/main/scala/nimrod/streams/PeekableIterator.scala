@@ -1,4 +1,4 @@
-package nimrod.util
+package nimrod.streams
 
 class PeekableIterator[A](base : Iterator[A]) extends Iterator[A] {
   private var last : Option[A] = None

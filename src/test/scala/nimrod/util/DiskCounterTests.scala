@@ -3,7 +3,7 @@ package nimrod.util
 import org.scalatest._
 
 class DiskCounterTests extends FlatSpec with Matchers  {
-  val rand = new java.util.Random()
+/*  val rand = new java.util.Random()
 
   "disk counter" should "count" in {
     val values : List[Int] = ((0 until 2000) map { x => rand.nextInt(100) }).toList
@@ -25,6 +25,6 @@ class DiskCounterTests extends FlatSpec with Matchers  {
     }
     assert(read == counts.size)
     counter.close
-  }
+  }*/
 }
 

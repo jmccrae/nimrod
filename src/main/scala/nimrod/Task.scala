@@ -40,10 +40,6 @@ trait Task extends TaskMessenger {
   }
 }
 
-trait Run {
-  def dateForFile(file : File) : Long = 0l
-}
-
 object task {
   def apply(name : String)(action : => Unit)(implicit workflow : Workflow) = workflow.register(new Task {
     override def exec = { action ; 0 }
@@ -52,22 +48,3 @@ object task {
   })
   def apply(context : Context)(implicit workflow : Workflow) = workflow.register(context)
 }
-
-/*object subTask {
-  def apply(file : File, opts : String*)(implicit workflow : Workflow) {
-    val programSB = new StringBuilder()
-    val ln = System.getProperty("line.separator")
-    programSB.append("import nimrod._ ; ")
-    programSB.append("import nimrod.tasks._ ; ")
-    programSB.append("import java.io._ ; ")
-    programSB.append("implicit val workflow = new Workflow(\""+file.getPath()+"\") ; ")
-    programSB.append("val opts = new Opts(Array[String](" + opts.map("\""+_+"\"").mkString(",") + ")).doNotRequireFileExists ; ")
-    for(line <- io.Source.fromFile(file).getLines) {
-      programSB.append(line + ln)
-    }
-    programSB.append("workflow")
-    val wf = new Eval().apply[Workflow](programSB.toString())
-    workflow.add(wf)
-  }
-  def apply(path : String, opts : String*)(implicit workflow : Workflow) { apply(new File(path),opts:_*)(workflow) }
-}*/
