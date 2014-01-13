@@ -2,7 +2,7 @@ package nimrod.tasks
 import nimrod._
 import java.io.File
 
-class rm(file : File) extends Task {
+class rm(file : File, protected val messenger : TaskMessenger) extends Task {
   private var e = false
   private var recursive = false
   override def exec = if(recursive && file.isDirectory()) {
@@ -44,6 +44,6 @@ class rm(file : File) extends Task {
 }
 
 object rm {
-  def apply(path : String)(implicit workflow : Workflow) = workflow.register(new rm(new File(path)))
-  def apply(file : File)(implicit workflow : Workflow) = workflow.register(new rm(file))
+  def apply(path : String)(implicit workflow : Workflow) = workflow.register(new rm(new File(path), workflow))
+  def apply(file : File)(implicit workflow : Workflow) = workflow.register(new rm(file, workflow))
 }

@@ -4,7 +4,7 @@ import java.io._
 import java.net._
 import nimrod._
 
-class wget(url : URL) extends Task with Monitorable {
+class wget(url : URL, protected val messenger : TaskMessenger) extends Task {
   private var noclobber = false
   private var outputStream : OutputStream = System.out
 
@@ -27,22 +27,22 @@ class wget(url : URL) extends Task with Monitorable {
     try {
       val conn = url.openConnection()
       val size = fileSize(conn)
-      if(size >= 0) {
+    /*  if(size >= 0) {
         setPips((size/4096).toInt)
-      }
+      }*/
       val stream = conn.getInputStream()
       var buf = new Array[Byte](4096)
       var read = stream.read(buf)
       while(read != -1) {
         outputStream.write(buf,0,read)
         read = stream.read(buf)
-        pip
+        //pip
       }
       outputStream.flush
       if(outputStream != System.out) {
         outputStream.close
       }
-      done
+      //done
       return 0
     } catch {
       case x : Exception => {
@@ -64,6 +64,6 @@ class wget(url : URL) extends Task with Monitorable {
 }
 
 object wget {
-  def apply(url : URL)(implicit wf : Workflow) = wf.register(new wget(url))
-  def apply(url : String)(implicit wf : Workflow) = wf.register(new wget(new URL(url)))
+  def apply(url : URL)(implicit wf : Workflow) = wf.register(new wget(url, wf))
+  def apply(url : String)(implicit wf : Workflow) = wf.register(new wget(new URL(url), wf))
 }

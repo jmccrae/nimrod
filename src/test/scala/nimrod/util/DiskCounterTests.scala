@@ -2,7 +2,7 @@ package nimrod.util
 
 import org.scalatest._
 
-class DiskCounterTests extends FlatSpec with matchers.ShouldMatchers  {
+class DiskCounterTests extends FlatSpec with Matchers  {
   val rand = new java.util.Random()
 
   "disk counter" should "count" in {

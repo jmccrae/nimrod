@@ -2,7 +2,7 @@ package nimrod
 
 import java.io._
 
-class Do(args : List[String]) extends Task {
+class Do(args : List[String], wf : TaskMessenger) extends Task {
   private var stdin : Option[File] = None
   private var stdout : Option[File] = None
   private var stdoutAppend : Boolean = false
@@ -23,6 +23,8 @@ class Do(args : List[String]) extends Task {
       case None => throw new WorkflowException("Command not found: " + args(0))
     }
   }
+
+  protected def messenger = wf
 
   override def exec = {
     val pb = new ProcessBuilder(args:_*)
@@ -151,5 +153,5 @@ class Do(args : List[String]) extends Task {
 }
 
 object Do {
-  def apply(cmd : String, args : String*)(implicit workflow : Workflow) = workflow.register(new Do(cmd :: args.toList))
+  def apply(cmd : String, args : String*)(implicit workflow : Workflow) = workflow.register(new Do(cmd :: args.toList, workflow))
 }

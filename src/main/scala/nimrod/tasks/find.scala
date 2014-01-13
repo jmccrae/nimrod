@@ -1,8 +1,9 @@
 package nimrod.tasks
 
+import nimrod.{Workflow, TaskMessenger}
 import java.io.File
 
-class find(start : File, filter : File => Boolean) {
+class find(start : File, filter : File => Boolean, val messenger : TaskMessenger) {
   def apply : Seq[File] = findFrom(start)
 
   def findFrom(file : File) : Seq[File] = {
@@ -25,6 +26,6 @@ class find(start : File, filter : File => Boolean) {
 }
 
 object find {
-  def apply(file : File)(filter : File => Boolean) = new find(file,filter)
-  def apply(path : String)(filter : File => Boolean) = new find(new File(path),filter)
+  def apply(file : File)(filter : File => Boolean)(implicit workflow : Workflow) = new find(file,filter,workflow)
+  def apply(path : String)(filter : File => Boolean)(implicit workflow : Workflow) = new find(new File(path),filter,workflow)
 }

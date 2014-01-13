@@ -5,7 +5,7 @@ import java.io.File
 import java.io.PrintWriter
 import java.util.Scanner
 
-class split(file : File, lineCount : Int, namer : Int => String) extends Task {
+class split(file : File, lineCount : Int, namer : Int => String, protected val messenger : TaskMessenger) extends Task {
   override def exec = {
     val in = new Scanner(file)
     var part = 1
@@ -41,9 +41,9 @@ class split(file : File, lineCount : Int, namer : Int => String) extends Task {
 
 object split {
   def apply(lines : Int, file : File)(namer : Int => String)(implicit workflow : Workflow) = {
-    workflow.register(new split(file,lines,namer))
+    workflow.register(new split(file,lines,namer, workflow))
   }
   def apply(lines : Int, path : String)(namer : Int => String)(implicit workflow : Workflow) = {
-    workflow.register(new split(new File(path),lines,namer))
+    workflow.register(new split(new File(path),lines,namer, workflow))
   }
 }

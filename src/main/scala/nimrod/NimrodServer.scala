@@ -5,11 +5,6 @@ import akka.remote.RemoteScope
 import com.typesafe.config.ConfigFactory
 import com.twitter.util.Eval
 
-case class NimrodTaskSubmission(name : String, program : String, args : List[String], listMode : Boolean, beginStep : Int)
-case class NimrodOutput(message : String)
-case class NimrodError(message : String)
-case class NimrodBeginTask()
-case class NimrodEndTask()
 object BounceToMe
 
 class NimrodServerActor extends Actor {
@@ -21,33 +16,34 @@ class NimrodServerActor extends Actor {
       val programSB = new StringBuilder()
       val key = genkey
 
-      System.err.println(program)
-      
       val ln = System.getProperty("line.separator")
       programSB.append("import nimrod._ ; ")
       programSB.append("import nimrod.tasks._ ; ")
       programSB.append("import java.io._ ; ")
-      programSB.append("implicit val workflow = new Workflow(\""+name+"\",\""+key+"\") ; ")
-      programSB.append("val opts = new Opts(Array[String](" + args.map("\""+_+"\"").mkString(",") + ")) ; ")
+      programSB.append("object ThisContext extends nimrod.Context {")
+      programSB.append("def name = \""+name+"\";")
+      programSB.append("def args = Seq(" + args.map("\""+_+"\"").mkString(",") + ");")
+      programSB.append("override def key = \""+key+"\";")
       programSB.append(program + ln)
-      programSB.append("workflow")
-      Preprocessor(programSB)
-      val workflow = try {
-        new Eval()(programSB.toString()).asInstanceOf[Workflow]
+      programSB.append("};")
+      programSB.append("ThisContext.workflow")
+      try {
+        val workflow = new Eval()(programSB.toString()).asInstanceOf[Workflow]
+        val workflowActor = context.actorOf(Props(classOf[WorkflowActor], workflow), "workflow-" + workflow.key)
+        if(listMode) {
+          workflowActor ! ListTasks
+        } else {
+          workflowActor ! StartWorkflow(beginStep)
+        }
+        returns += key -> sender
       } catch {
-        case x : WorkflowException => System.err.println(x.getMessage())
+        case x : WorkflowException => {
+          sender ! WorkflowNotStarted(name, x.getMessage()) 
+        }
         case x : Eval.CompilerException => {
-          System.err.println("The scripts has the following errors:")
-          System.err.println(x.getMessage())
+          sender ! WorkflowNotStarted(name, x.getMessage())
         }
       }
-      val workflowActor = context.actorOf(Props(classOf[WorkflowActor], workflow), "workflow")
-      if(listMode) {
-        workflowActor ! ListTasks
-      } else {
-        workflowActor ! StartWorkflow(beginStep)
-      }
-      returns += key -> sender
     }
     case WorkflowNotStarted(key, msg) => {
       returns.get(key) match {
@@ -66,6 +62,7 @@ class NimrodServerActor extends Actor {
         }
       }
     }
+    case msg : KeyedMessage => returns.get(msg.key).map(_ ! msg)
     case BounceToMe => // noop
   }
 }
@@ -98,7 +95,15 @@ class NimrodCLIActor(server : ActorRef) extends Actor {
     }
     case WorkflowNotStarted(key, msg) => {
       System.err.println(msg)
+      context.system.shutdown()
     }
+    case TaskStarted(_, name, step) => System.out.println("[\033[0;32m " + step + " \033[m] Start: " + task)
+    case TaskCompleted(_, name, step) => System.out.println("[\033[0;32m " + step + " \033[m] Finished: " + task)
+    case TaskFailed(_, name, errorCode, step) => System.out.println("[\033[0;31m " + step + " \033[m] Failed [" + errorCode + "]: " + task)
+    case StringMessage(_, text, true, true) => System.err.println(text)
+    case StringMessage(_, text, false, true) => System.err.print(text)
+    case StringMessage(_, text, true, false) => System.out.println(text)
+    case StringMessage(_, text, false, false) => System.out.print(text)
   }
 }
 

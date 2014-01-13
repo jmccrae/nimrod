@@ -3,7 +3,7 @@ package nimrod.tasks
 import nimrod._
 import java.io.File
 
-class output(fileName : String) extends Task {
+class output(fileName : String, protected val messenger : TaskMessenger) extends Task {
   override def exec = if(new File(fileName).exists) {
     0
   } else {
@@ -14,6 +14,6 @@ class output(fileName : String) extends Task {
 }
 
 object output {
-  def apply(file : File)(implicit workflow : Workflow) = workflow.register(new output(file.getPath()))
-  def apply(path : String)(implicit workflow : Workflow) = workflow.register(new output(path))
+  def apply(file : File)(implicit workflow : Workflow) = workflow.register(new output(file.getPath(), workflow))
+  def apply(path : String)(implicit workflow : Workflow) = workflow.register(new output(path, workflow))
 } 

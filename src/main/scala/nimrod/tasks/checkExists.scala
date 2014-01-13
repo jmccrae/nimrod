@@ -3,7 +3,7 @@ package nimrod.tasks
 import nimrod._
 import java.io.File
 
-class checkExists(file : File) extends Task {
+class checkExists(file : File, val messenger : TaskMessenger) extends Task {
   override def exec = 0
  
   requires(file)
@@ -12,6 +12,6 @@ class checkExists(file : File) extends Task {
 }
 
 object checkExists {
-  def apply(file : File)(implicit workflow : Workflow) = workflow.register(new checkExists(file))
-  def apply(path : String)(implicit workflow : Workflow) = workflow.register(new checkExists(new File(path)))
+  def apply(file : File)(implicit workflow : Workflow) = workflow.register(new checkExists(file, workflow))
+  def apply(path : String)(implicit workflow : Workflow) = workflow.register(new checkExists(new File(path), workflow))
 }

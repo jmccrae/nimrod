@@ -64,6 +64,6 @@ object Main {
         nimrod.startLocal()
       }
       nimrod.submit(args(0), args.drop(1), listMode, beginStep) 
-}
+    }
   }
 }

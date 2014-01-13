@@ -7,7 +7,7 @@ import java.io.PrintStream
 import java.util.Scanner
 import java.util.zip.GZIPInputStream
 
-class cat(files : => Seq[File]) extends Task {
+class cat(files : => Seq[File], val messenger : TaskMessenger) extends Task {
   private var outFile : Option[File] = None
   override def exec = {
     val out = outFile match {
@@ -47,5 +47,5 @@ object cat {
     case s : String => new File(s)
     case _ => throw new IllegalArgumentException()
   }).toSeq}))*/
-  def apply(files : => Seq[File])(implicit workflow : Workflow) = workflow.register(new cat(files))
+  def apply(files : => Seq[File])(implicit workflow : Workflow) = workflow.register(new cat(files, workflow))
 }

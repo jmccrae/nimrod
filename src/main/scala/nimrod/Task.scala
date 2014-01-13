@@ -6,7 +6,7 @@ import java.io.File
 /**
  * A single task in a workflow
  */
-trait Task {
+trait Task extends TaskMessenger {
   var requirements : List[Artifact] = Nil
   var results : List[Artifact] = Nil
   def exec : Int = 0
@@ -31,14 +31,13 @@ trait Task {
   protected def generates(artifact : File) {
     results ::= new FileArtifact(artifact)
   }
-}
-
-trait Monitorable {
-  private var N = 0
-  protected def setPips(n : Int) { N = n }
-  def pips = N
-  def pip = System.err.print(".")
-  def done = System.err.println()
+  protected def messenger : TaskMessenger
+  def print(text : String) = messenger.print(text)
+  def println(text : String) = messenger.println(text)
+  object err extends CanPrint {
+    def print(text : String) = messenger.err.print(text)
+    def println(text : String) = messenger.err.println(text)
+  }
 }
 
 trait Run {
@@ -68,20 +67,15 @@ class GenericArtifact[E] extends Artifact {
 }
 
 object task {
-  def apply(action : => Unit)(implicit workflow : Workflow) = workflow.register(new Task {
-    override def exec = { action ; 0 }
-    override def toString = "Anonymous task"
-  })
-}
-
-object namedTask {
   def apply(name : String)(action : => Unit)(implicit workflow : Workflow) = workflow.register(new Task {
     override def exec = { action ; 0 }
     override def toString = name
+    protected val messenger = workflow
   })
+  def apply(context : Context)(implicit workflow : Workflow) = workflow.register(context)
 }
 
-object subTask {
+/*object subTask {
   def apply(file : File, opts : String*)(implicit workflow : Workflow) {
     val programSB = new StringBuilder()
     val ln = System.getProperty("line.separator")
@@ -98,4 +92,4 @@ object subTask {
     workflow.add(wf)
   }
   def apply(path : String, opts : String*)(implicit workflow : Workflow) { apply(new File(path),opts:_*)(workflow) }
-}
+}*/

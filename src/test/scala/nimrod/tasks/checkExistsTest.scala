@@ -4,7 +4,7 @@ import org.scalatest._
 import nimrod._
 import nimrod.tasks._
 
-class checkExistsTest extends FlatSpec with matchers.ShouldMatchers {
+class checkExistsTest extends FlatSpec with Matchers {
   "checkExists" should "fail if file does not exist" in {
     implicit val workflow = new Workflow("checkExists","test")
 
