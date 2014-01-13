@@ -1,5 +1,7 @@
 package nimrod
 
+import java.io.File
+
 trait Artifact {
   def uptodate(run : Run) : Boolean
   def validInput : Boolean
