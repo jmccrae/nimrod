@@ -603,13 +603,13 @@ class Opts(args : Seq[String]) {
      * @throws IOException If the file is not found or is not a correct zipped
      * file or some other reason
      */
-    def openInput(file : File) : io.Source = {
+    def openInput(file : File) : scala.io.Source = {
         if (file.getName().endsWith(".gz")) {
-            io.Source.fromInputStream(new GZIPInputStream(new FileInputStream(file)))
+            scala.io.Source.fromInputStream(new GZIPInputStream(new FileInputStream(file)))
         } else if (file.getName().endsWith(".bz2")) {
-            io.Source.fromInputStream(new BZip2CompressorInputStream(new FileInputStream(file)))
+            scala.io.Source.fromInputStream(new BZip2CompressorInputStream(new FileInputStream(file)))
         } else {
-            io.Source.fromFile(file)
+            scala.io.Source.fromFile(file)
         }
     }
 
@@ -622,7 +622,7 @@ class Opts(args : Seq[String]) {
      * @throws IOException If the file is not found or is not a correct zipped
      * file or some other reason
      */
-    def openInput(file : String) : io.Source = openInput(new File(file))
+    def openInput(file : String) : scala.io.Source = openInput(new File(file))
 
 
     /**

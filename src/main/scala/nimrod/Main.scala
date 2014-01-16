@@ -1,14 +1,5 @@
 package nimrod
 
-import com.twitter.util.Eval
-import akka.actor._
-import akka.remote._
-import akka.pattern.ask
-import scala.concurrent.Await
-import scala.concurrent.duration.Duration
-import akka.util.Timeout
-import com.typesafe.config.ConfigFactory
-
 object Main {
   private def printUsage = {
     System.err.println("Usage: ./nimrod script.scala [args]")
@@ -25,7 +16,8 @@ object Main {
           0
         }
       }
-      new NimrodEngine().startServer(port)
+//      new NimrodEngine().startServer(port)
+      new NimrodServer(port).await()
     } else {
       var args = _args.toList
       if(args.length < 1) {
@@ -57,13 +49,14 @@ object Main {
           case _ => printUsage
         }
       }
-      val nimrod = new NimrodEngine()
       if(port > 0) { // Submit to remote instance
-        nimrod.startRemote(server, port)
+//        nimrod.startRemote(server, port)
+        new NimrodClient(server, port).submit(args(0), args.drop(1), listMode, beginStep)
       } else {
-        nimrod.startLocal()
+        NimrodEngine.local(args(0), args.drop(1), listMode, beginStep)
+//        nimrod.startLocal()
       }
-      nimrod.submit(args(0), args.drop(1), listMode, beginStep) 
+//      nimrod.submit(args(0), args.drop(1), listMode, beginStep) 
     }
   }
 }

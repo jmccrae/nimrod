@@ -101,7 +101,7 @@ class Workflow(val name : String, val key : String) extends TaskMessenger {
   }
 }
 
-class WorkflowActor(workflow : Workflow) extends Actor {
+/*class WorkflowActor(workflow : Workflow) extends Actor {
   def receive = {
     case ListTasks => {
       try {
@@ -124,7 +124,32 @@ class WorkflowActor(workflow : Workflow) extends Actor {
       sender ! Completion(workflow.key)
     }
   }
+}*/
+
+class WorkflowActor(workflow : Workflow) extends WaitQueue[Message] {
+  def list {
+    try {
+      workflow.list(new AkkaMessenger(this, workflow.key))
+    } catch {
+      case WorkflowException(msg, _) => {
+        this ! WorkflowNotStarted(workflow.key, msg)
+      }
+    }
+    stop
+  }
+  def start(step : Int) {
+    try {
+      workflow.start(step, new AkkaMessenger(this, workflow.key))
+    } catch {
+      case WorkflowException(msg, _) => {
+        this ! WorkflowNotStarted(workflow.key, msg)
+      }
+    }
+    stop
+  }
 }
+
+
 
 trait CanPrint {
   def print(text : String) : Unit
@@ -141,7 +166,7 @@ trait Messenger extends TaskMessenger {
   def failTask(task : Task, errorCode : Int, step : Step) : Unit
 }
 
-class AkkaMessenger(actor : ActorRef, key : String) extends Messenger {
+class AkkaMessenger(actor : WaitQueue[Message], key : String) extends Messenger {
   def startTask(task : Task, step : Step) = actor ! TaskStarted(key, task.toString(), step)
   def endTask(task : Task, step : Step) = actor ! TaskCompleted(key, task.toString(), step)
   def failTask(task : Task, errorCode : Int, step : Step) = actor ! TaskFailed(key, task.toString(), errorCode, step)
@@ -168,7 +193,7 @@ object DefaultMessenger extends Messenger {
 /** Thrown if the workflow could not be executed (not if the execution failed) */
 case class WorkflowException(msg : String = null, cause : Exception = null) extends RuntimeException(msg,cause)
 
-case class Step(number : List[(Int,Int)]) {
+case class Step(val number : List[(Int,Int)]) {
   require(!number.isEmpty)
   def +(n : Int) = number match {
     case (x,y) :: steps => Step((x+n,y) :: steps)

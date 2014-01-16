@@ -214,7 +214,6 @@ object MapStreamable {
           case null => theMap.put(key.asInstanceOf[K], List(value.asInstanceOf[V]))
           case s => combiner match {
             case Some(by) => {
-              System.err.println("combining for " + key)
               theMap.put(key.asInstanceOf[K], List(by(s.head, value.asInstanceOf[V])))
             }
             case None => theMap.put(key.asInstanceOf[K], value.asInstanceOf[V] :: s)

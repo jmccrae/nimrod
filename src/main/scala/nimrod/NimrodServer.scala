@@ -1,11 +1,101 @@
 package nimrod
 
-import akka.actor._
-import akka.remote.RemoteScope
-import com.typesafe.config.ConfigFactory
 import com.twitter.util.Eval
+import java.util.concurrent._
 
-object BounceToMe
+object NimrodEngine {
+  def genkey = scala.util.Random.nextInt.toHexString
+
+  def submit(name : String, program : String, args : List[String], listMode : Boolean, beginStep : Int) : Iterator[Message] = {
+    val executor = Executors.newSingleThreadExecutor()
+    val programSB = new StringBuilder()
+    val key = genkey
+
+    val ln = System.getProperty("line.separator")
+    programSB.append("import nimrod._ ; ")
+    programSB.append("import nimrod.tasks._ ; ")
+    programSB.append("import java.io._ ; ")
+    programSB.append("object ThisContext extends nimrod.Context {")
+    programSB.append("def name = \""+name+"\";")
+    programSB.append("def args = Seq(" + args.map("\""+_+"\"").mkString(",") + ");")
+    programSB.append("override def key = \""+key+"\";")
+    programSB.append(program + ln)
+    programSB.append("};")
+    programSB.append("ThisContext.workflow")
+    try {
+      val workflow = new Eval()(programSB.toString()).asInstanceOf[Workflow]
+      val workflowActor = new WorkflowActor(workflow)
+      if(listMode) {
+        executor.execute(new Runnable {
+          def run { workflowActor.list }
+        })
+      } else {
+        executor.execute(new Runnable {
+          def run { workflowActor.start(beginStep) }
+        })
+      }
+      executor.shutdown()
+        workflowActor
+      } catch {
+        case x : Eval.CompilerException => {
+          Seq(WorkflowNotStarted(name, x.getMessage())).iterator
+        }
+      }
+  }
+
+  def cli(msg : Message) = msg match {
+    case WorkflowNotStarted(key, msg) => {
+      System.err.println(msg)
+    }
+    case TaskStarted(_, name, step) => System.out.println("[\033[0;32m " + step + " \033[m] Start: " + task)
+    case TaskCompleted(_, name, step) => System.out.println("[\033[0;32m " + step + " \033[m] Finished: " + task)
+    case TaskFailed(_, name, errorCode, step) => System.out.println("[\033[0;31m " + step + " \033[m] Failed [" + errorCode + "]: " + task)
+    case StringMessage(_, text, true, true) => System.err.println(text)
+    case StringMessage(_, text, false, true) => System.err.print(text)
+    case StringMessage(_, text, true, false) => System.out.println(text)
+    case StringMessage(_, text, false, false) => System.out.print(text)
+  }
+
+  def local(name : String, args : List[String], listMode : Boolean, beginStep : Int) = {
+    val ln = System.getProperty("line.separator")
+    val programSB = new StringBuilder()
+    for(line <- scala.io.Source.fromFile(name).getLines()) {
+      programSB.append(line + ln)
+    }
+    for(msg <- submit(name, programSB.toString(), args, listMode, beginStep)) {
+      cli(msg)
+    }
+  }
+}
+
+
+
+class NimrodServer(port : Int) {
+  private val server = new NettyServer(port, msg => {
+    msg match {
+      case NimrodTaskSubmission(name, program, args, listMode, beginStep) => NimrodEngine.submit(name, program, args, listMode,
+        beginStep)
+      case _ => throw new RuntimeException("bad message " + msg)
+    }
+  })
+  def await() = server.await()
+}
+
+class NimrodClient(server : String, port : Int) {
+  private val client = new NettyClient(server, port, NimrodEngine.cli)
+
+  def submit(name :String, args : List[String], listMode : Boolean, beginStep : Int) = {
+    val ln = System.getProperty("line.separator")
+    val programSB = new StringBuilder()
+    for(line <- scala.io.Source.fromFile(name).getLines()) {
+      programSB.append(line + ln)
+    }
+    client send NimrodTaskSubmission(name, programSB.toString(), args, listMode, beginStep)
+  }
+}
+
+
+/*object BounceToMe
 
 class NimrodServerActor extends Actor {
   private var returns = collection.mutable.Map[String, ActorRef]()
@@ -166,6 +256,6 @@ akka {
       system.shutdown()
     }
   }
-}
+}*/
     
 

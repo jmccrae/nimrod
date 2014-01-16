@@ -94,7 +94,7 @@ class MapStreamableTest extends FlatSpec with Matchers {
 
     workflow.start(1)
 
-    val lines = io.Source.fromFile(file).getLines
+    val lines = scala.io.Source.fromFile(file).getLines
     
     assert(lines.next == "a\tb\tc")
     assert(lines.next == "c\td")
