@@ -4,6 +4,7 @@ import nimrod._
 import java.io._
 import java.lang.Integer
 import java.util.TreeMap
+import java.util.concurrent.{Executors, TimeUnit}
 import akka.actor._
 import akka.pattern.ask
 import akka.util.Timeout
@@ -22,7 +23,7 @@ class MapStreamable[K, V](writeInterval : Int = 1000000, combiner : Option[(V, V
   protected def system : ActorSystem = theSystem
   protected lazy val theSystem = ActorSystem("map-streamable" + scala.util.Random.nextInt.toHexString)
   private val actor = system.actorOf(Props(classOf[PutActor[K, V]], writeInterval, ordering, combiner))
-  implicit private val akkaTimeout = Timeout(Int.MaxValue)
+  implicit private val akkaTimeout = Timeout(timeoutSeconds)
   private var forwards = List[ActorRef](actor)
 
   def put(k : K, v : V) {
@@ -31,7 +32,9 @@ class MapStreamable[K, V](writeInterval : Int = 1000000, combiner : Option[(V, V
     }
   }
 
-  def iterator : Iterator[(K, Seq[V])] = {
+  def iterator : Iterator[(K, Seq[V])] = _iterator
+
+  protected def _iterator = {
     val p = Promise[Iterator[(K, Seq[V])]]()
     actor ! Values(p)
     Await.result(p.future, Duration.Inf).asInstanceOf[Iterator[(K, Seq[V])]]
@@ -41,67 +44,75 @@ class MapStreamable[K, V](writeInterval : Int = 1000000, combiner : Option[(V, V
     system.shutdown()
   }
 
+  private def withThreadPool(function : (K, Seq[V]) => Unit) {
+    val tp = Executors.newCachedThreadPool()
+    for((k, vs) <- iterator) {
+      tp.execute(new Runnable {
+        def run {
+          function(k, vs)
+        }
+      })
+    }
+    tp.shutdown()
+    tp.awaitTermination(timeoutSeconds, TimeUnit.SECONDS)
+  }
+
   def map[K2, V2](by : (K, V) => Seq[(K2, V2)])(implicit ordering2 : Ordering[K2]) = new MapStreamable[K2, V2](writeInterval)(ordering2) {
     override def iterator = {
-      for((k, vs) <- MapStreamable.this.iterator) {
-        for(v <- vs) {
-          for((k2, v2) <- by(k, v)) {
-            put(k2, v2)
+      MapStreamable.this.withThreadPool { 
+        (k,vs) => {
+          for(v <- vs) {
+            for((k2,v2) <- by(k,v)) {
+              put(k2, v2)
+            }
           }
         }
       }
-      super.iterator
+      _iterator
     }
     override def system = MapStreamable.this.system
   }
 
   def reduce[K2, V2](by : (K, Seq[V]) => Seq[(K2, V2)])(implicit ordering2 : Ordering[K2]) = new MapStreamable[K2, V2](writeInterval)(ordering2) {
     override def iterator = {
-      for((k,vs) <- MapStreamable.this.iterator) {
-        for((k2, v2) <- by(k, vs)) {
-          put(k2, v2)
+      MapStreamable.this.withThreadPool {
+        (k,vs) => {
+          for((k2, v2) <- by(k, vs)) {
+            put(k2, v2)
+          }
         }
       }
-      super.iterator
+      _iterator
     }
     override def system = MapStreamable.this.system
   }
 
   def mapCombine[K2, V2](by : (K, V) => Seq[(K2, V2)])(comb : (V2, V2) => V2)(implicit ordering2 : Ordering[K2]) = new MapStreamable[K2, V2](writeInterval, Some(comb))(ordering2) {
     override def iterator = {
-      for((k, vs) <- MapStreamable.this.iterator) {
-        for(v <- vs) {
-          for((k2, v2) <- by(k, v)) {
-            put(k2, v2)
+      MapStreamable.this.withThreadPool {
+        (k,vs) => {
+          for(v <- vs) {
+            for((k2, v2) <- by(k, v)) {
+              put(k2, v2)
+            }
           }
         }
       }
-      super.iterator
+      _iterator
     }
     override def system = MapStreamable.this.system
   }
-
-
-  def >(file : FileArtifact, separator : String)(implicit workflow : Workflow) : Task = workflow.register(new Task {
-    override def exec = {
-      val out = file.asStream
-      for((k, v) <- iterator) {
-        out.println(k.toString + separator + v.mkString(separator))
-      }
-      close
-      0
-    }
-    override def messenger = workflow
-  })
 }
 
 object MapStreamable {
+  private val timeoutSeconds = System.getProperty("NIMROD_TIMEOUT","31536000").toInt
+
   // messages
   private case class Put[K, V](key : K, value : V)
   private case class Sync[K, V](map : TreeMap[K, List[V]], size : Int, p : Option[Promise[Iterator[(K, Seq[V])]]])
   private case class Values[K, V](p : Promise[Iterator[(K, Seq[V])]])
   private case class IteratorReady[K, V](files : ListBuffer[File], p : Promise[Iterator[(K, Seq[V])]])
-  implicit private val akkaTimeout = Timeout(Int.MaxValue)
+  implicit private val akkaTimeout = Timeout(timeoutSeconds)
 
   private class SerializedMapIterator[K, V](file : File) extends Iterator[(K, V)] {
     val in = new ObjectInputStream(new BufferedInputStream(new FileInputStream(file)))
@@ -118,7 +129,7 @@ object MapStreamable {
   private class MapIterator[K, V](files : ListBuffer[File], ordering : Ordering[K]) extends Iterator[(K, Seq[V])] {
     val readers = files map (file => new PeekableIterator[(K, V)](new SerializedMapIterator(file)))
 
-    def next = {
+    def next = this.synchronized {
       val heads = readers.flatMap(_.peek.map(_._1))
       if(heads.isEmpty) {
         throw new NoSuchElementException()
@@ -144,7 +155,7 @@ object MapStreamable {
       }
       (key,values)
     }
-    def hasNext = readers.exists(_.hasNext)
+    def hasNext = this.synchronized { readers.exists(_.hasNext) }
   }
 
   private class CombineIterator[K, V](files : ListBuffer[File], ordering : Ordering[K], by : (V, V) => V) extends Iterator[(K, Seq[V])] {
