@@ -101,6 +101,33 @@ class MapStreamableTest extends FlatSpec with Matchers {
     assert(lines.next == "e\tf")
     assert(!lines.hasNext)
   }
+
+  "map streamble" should "cogroup" in {
+    val streamable1 = new MapStreamable[String, String]()
+
+    streamable1.put("a","b")
+    streamable1.put("e","f")
+    streamable1.put("c","d")
+    streamable1.put("a","c")
+
+    val streamable2 = new MapStreamable[String, Int]()
+
+    streamable2.put("d",1)
+    streamable2.put("a",3)
+    streamable2.put("d",4)
+
+
+    val iterator = (streamable1 cogroup streamable2).iterator
+
+    assert(iterator.next == ("a", List((List("b","c"),List(3)))))
+    assert(iterator.next == ("c", List((Seq("d"),Nil))))
+    assert(iterator.next == ("d", List((Nil,Seq(1,4)))))
+    assert(iterator.next == ("e", List((Seq("f"),Nil))))
+    assert(!iterator.hasNext)
+
+    streamable1.close
+    streamable2.close
+  }
 }
     
 

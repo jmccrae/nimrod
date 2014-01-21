@@ -77,7 +77,7 @@ class Opts(args : Seq[String]) {
      * @param name The symbolic name for this argument
      * @param description The description of this argument
      */
-    def roFile(name : String, description : String) : File = {
+    def roFile(name : String, description : String) : FileArtifact = {
         val arg = new Argument(name, null, description, false);
         argObjs.add(arg);
         if (_args.isEmpty()) {
@@ -93,7 +93,7 @@ class Opts(args : Seq[String]) {
                 return null;
             }
             _args.remove(0);
-            return file;
+            return FileArtifact(file);
         }
     }
 
@@ -103,11 +103,11 @@ class Opts(args : Seq[String]) {
      * @param description The description of this argument
      * @param defaultValue The default value to use
      */
-    def roFile(name : String, description : String, defaultValue : File) : File = {
+    def roFile(name : String, description : String, defaultValue : File) : FileArtifact = {
         val arg = new Argument(name, name, description, true);
         argObjs.add(arg);
         if (_args.isEmpty()) {
-            return defaultValue;
+            return FileArtifact(defaultValue);
         } else {
             for (i <- 0 until _args.size() - 1) {
                 if (_args.get(i).equals("-" + name)) {
@@ -120,10 +120,10 @@ class Opts(args : Seq[String]) {
                     }
                     _args.remove(i);
                     _args.remove(i);
-                    return file;
+                    return FileArtifact(file);
                 }
             }
-            return defaultValue;
+            return FileArtifact(defaultValue);
         }
     }
 
@@ -132,7 +132,7 @@ class Opts(args : Seq[String]) {
      * @param name The symbolic name for this argument
      * @param description The description of this argument
      */
-    def woFile(name : String, description : String) : File = {
+    def woFile(name : String, description : String) : FileArtifact = {
         val arg = new Argument(name, null, description, false);
         argObjs.add(arg);
         if (_args.isEmpty()) {
@@ -148,7 +148,7 @@ class Opts(args : Seq[String]) {
                 return null;
             }
             _args.remove(0);
-            return file;
+            return FileArtifact(file);
         }
     }
 
@@ -158,11 +158,11 @@ class Opts(args : Seq[String]) {
      * @param description The description of this argument
      * @param defaultValue The default value to use
      */
-    def woFile(name : String, description : String, defaultValue : File) : File = {
+    def woFile(name : String, description : String, defaultValue : File) : FileArtifact = {
         val arg = new Argument(name, name, description, true);
         argObjs.add(arg);
         if (_args.isEmpty()) {
-            return defaultValue;
+            return FileArtifact(defaultValue);
         } else {
             for (i <- 0 until _args.size() - 1) {
                 if (_args.get(i).equals("-" + name)) {
@@ -176,10 +176,10 @@ class Opts(args : Seq[String]) {
                     }
                     _args.remove(i);
                     _args.remove(i);
-                    return file;
+                    return FileArtifact(file);
                 }
             }
-            return defaultValue;
+            return FileArtifact(defaultValue);
         }
     }
 

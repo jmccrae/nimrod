@@ -21,6 +21,48 @@ trait Streamable[K, V] {
    */
   def iterator : Iterator[(K, Seq[V])]
 
+
+  /**
+   * Cogroup this streamable with another streamable
+   */
+  def cogroup[W](streamable : Streamable[K, W])(implicit ordering : Ordering[K]) : Streamable[K, (Seq[V], Seq[W])] = new streams.SeqStreamable(new Iterator[(K, (Seq[V], Seq[W]))] {
+    lazy val iter1 = new streams.PeekableIterator(iterator)
+    lazy val iter2 = new streams.PeekableIterator(streamable.iterator)
+
+    def hasNext = iter1.hasNext || iter2.hasNext
+
+    def next : (K, (Seq[V], Seq[W])) = iter1.peek match {
+      case Some((k1, vs1)) => iter2.peek match {
+        case Some((k2, vs2)) => {
+          val o = ordering.compare(k1,k2)
+            if(o < 0) {
+              iter1.next
+              return (k1, (vs1, Nil))
+            } else if(o > 0) {
+              iter2.next
+              return (k2, (Nil, vs2))
+            } else {
+              iter1.next
+              iter2.next
+              return (k1, (vs1, vs2))
+            }
+          }
+          case None => {
+            iter1.next
+            return (k1, (vs1, Nil))
+          }
+        }
+        case None => {
+          if(iter2.hasNext) {
+            val (k2, vs2) = iter2.next
+            return (k2, (Nil, vs2))
+          } else {
+            throw new NoSuchElementException()
+          }
+        }
+    }
+  })
+
   /**
    * Dump a map into a file
    * @param file The file to write to
@@ -41,6 +83,11 @@ trait Streamable[K, V] {
    * Simplified map where the mapper only returns one element
    */
   def mapOne[K2, V2](by : (K, V) => (K2, V2))(implicit ordering : Ordering[K2]) = map { (k, v) => Seq(by(k,v)) }
+  /**
+   * Simplified map combine where the mapper only returns one element
+   */
+  def mapCombineOne[K2, V2](by : (K, V) => (K2, V2))(comb : (V2, V2) => V2)(implicit ordering : Ordering[K2]) = mapCombine({ (k, v) =>
+    Seq(by(k,v)) })(comb)
   /**
    * Simplified reduce where the reducer only returns one element
    */
@@ -75,5 +122,6 @@ object Streamable {
   /**
    * Create a streamable whose keys are simply the element (line) number
    */
-  def enumerated[V](seq : Seq[V]) = new streams.SeqStreamable(((1 to seq.size) zip seq).iterator)
+  def enumerated[V](seq : Iterable[V]) = new streams.SeqStreamable((Stream.from(1) zip seq).iterator)
+  def enumerated[V](seq : Iterator[V]) = new streams.SeqStreamable(Stream.from(1).iterator zip seq)
 }

@@ -38,6 +38,24 @@ case class FileArtifact(file : File) extends Artifact {
     }
     scala.io.Source.fromFile(file)
   }
+  /**
+   * Open this file as a streamable
+   * @throws ArtifactException If the file cannot be read
+   */
+  def lines : Streamable[Int, String] = Streamable.enumerated(asSource.getLines)
+
+  def temporary : FileArtifact = {
+    file.deleteOnExit()
+    return this
+  }
+}
+
+object FileArtifact {
+  def temporary : FileArtifact = {
+    val file = File.createTempFile("nimrod", ".tmp")
+    file.deleteOnExit()
+    return FileArtifact(file)
+  }
 }
 
 /**
