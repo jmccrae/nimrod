@@ -1,5 +1,8 @@
 package nimrod
 
+/**
+ * Main executor for Nimrod
+ */
 object Main {
   private def printUsage = {
     System.err.println("Usage: ./nimrod script.scala [args]")

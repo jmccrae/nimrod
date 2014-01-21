@@ -9,15 +9,47 @@ import io.netty.channel.socket._
 import io.netty.channel.socket.nio._
 import io.netty.handler.codec._
 import io.netty.handler.codec.serialization._
+import io.netty.util.concurrent.{Future, GenericFutureListener}
 
-class NettyServerHandler(call : Message => Iterator[Message]) extends ChannelInboundHandlerAdapter {
-  override def channelRead(ctx : ChannelHandlerContext, msg : AnyRef) {
+/**
+ * The message handler for the netty server
+ */
+class NettyServerHandler(call : Message => Iterator[Message], server : NettyServer) extends SimpleChannelInboundHandler[Message] {
+  private var workflows = collection.mutable.Map[String, Iterator[Message]]()
+  private def genkey() = scala.util.Random.nextInt.toHexString
+
+  override def channelRead0(ctx : ChannelHandlerContext, msg : Message) {
     msg match {
-      case m : Message => for(result <- call(m)) {
-        ctx.writeAndFlush(result).sync()
+      case Die => {
+        ctx.writeAndFlush(Die)
+        server.stop
       }
-      case x => System.err.println("Unknown message " + x)
+     case Poll(key) => {
+        workflows.get(key) match {
+          case Some(iterator) => {
+            if(iterator.hasNext) {
+              ctx.writeAndFlush(iterator.next)
+            } else {
+              workflows.remove(key)
+              ctx.writeAndFlush(Completion(key))
+            }
+          }
+          case None => {
+            ctx.writeAndFlush(Completion(key))
+          }
+        }
+      }
+      case msg : Message => {
+        val iterator = call(msg)
+        val key = genkey()
+        workflows.put(key, iterator)
+        ctx.writeAndFlush(Start(key))
+      }
     }
+  }
+
+  override def channelReadComplete(ctx : ChannelHandlerContext) {
+    ctx.flush()
   }
 
   override def exceptionCaught(ctx : ChannelHandlerContext, cause : Throwable) {
@@ -26,24 +58,29 @@ class NettyServerHandler(call : Message => Iterator[Message]) extends ChannelInb
   }
 }
 
+/**
+ * A (remote) server that can perform actions upon receiving messages (e.g., executing workflows)
+ * @param port The port to start at
+ * @param call The action to perform on a message and an iterator to give the response to be sent back to the client
+ */
 class NettyServer(port : Int, call : Message => Iterator[Message]) {
-  val bossGroup = new NioEventLoopGroup()
-  val workerGroup = new NioEventLoopGroup()
+  private val bossGroup = new NioEventLoopGroup()
+  private val workerGroup = new NioEventLoopGroup()
 
-  val b = new ServerBootstrap()
+  private val b = new ServerBootstrap()
   b.group(bossGroup, workerGroup).
   channel(classOf[NioServerSocketChannel]).
   childHandler(new ChannelInitializer[SocketChannel] {
     def initChannel(ch : SocketChannel) {
-      ch.pipeline().addLast(new NettyStringEncoder())
-      ch.pipeline().addLast(new NettyStringDecoder())
-      ch.pipeline.addLast(new NettyServerHandler(call))
+      ch.pipeline().addLast(new NettyMessageEncoder())
+      ch.pipeline().addLast(new NettyMessageDecoder())
+      ch.pipeline.addLast(new NettyServerHandler(call, NettyServer.this))
     }
   }).
   option(ChannelOption.SO_BACKLOG, new Integer(128)).
   childOption(ChannelOption.SO_KEEPALIVE, java.lang.Boolean.TRUE)
 
-  val f = b.bind(port).sync()
+  private val f = b.bind(port).sync()
 
   def await() { f.channel().closeFuture().sync() }
 
@@ -53,11 +90,17 @@ class NettyServer(port : Int, call : Message => Iterator[Message]) {
   }
 }
 
-class NettyClientHandler(call : Message => Unit) extends ChannelInboundHandlerAdapter {
+/**
+ * The handler for the Netty Client
+ */
+class NettyClientHandler(call : Message => Unit, client : NettyClient) extends ChannelInboundHandlerAdapter {
   override def channelRead(ctx : ChannelHandlerContext, msg : AnyRef) {
+    System.err.println("read" + msg)
     msg match {
+      case Die => {
+        client.stop
+      }
       case m : Message => {
-        println("received " + m)
         call(m)
       }
       case _ => System.err.println("Did not understand server response " + msg)
@@ -65,31 +108,40 @@ class NettyClientHandler(call : Message => Unit) extends ChannelInboundHandlerAd
   }
 }
 
+/**
+ * A netty client that connects to a remote server and sends messages
+ * @param hostName The name of the remote host
+ * @param port The port on the remote server to connect to
+ * @param call The action to handle responses from the server
+ */
 class NettyClient(hostName : String, port : Int, call : Message => Unit) {
-  val workerGroup = new NioEventLoopGroup()
+  private val workerGroup = new NioEventLoopGroup()
 
-  val b = new Bootstrap()
+  private val b = new Bootstrap()
   b.group(workerGroup).
     channel(classOf[NioSocketChannel]).
     option(ChannelOption.SO_KEEPALIVE, java.lang.Boolean.TRUE).
     handler(new ChannelInitializer[SocketChannel]() {
       def initChannel(ch : SocketChannel) {
-        ch.pipeline().addLast(new NettyStringDecoder())
-        ch.pipeline().addLast(new NettyStringEncoder())
-        ch.pipeline().addLast(new NettyClientHandler(call))
+        ch.pipeline().addLast(new NettyMessageDecoder())
+        ch.pipeline().addLast(new NettyMessageEncoder())
+        ch.pipeline().addLast(new NettyClientHandler(call, NettyClient.this))
       }
     })
 
-  val f = b.connect(hostName, port).sync()
+  private val f = b.connect(hostName, port).sync()
 
-  val channel = f.channel()
+  private val channel = f.channel()
 
-  def send(msg : Object) = channel.writeAndFlush(msg).sync()
+  def send(msg : Object) = channel.writeAndFlush(msg)
 
   def stop = workerGroup.shutdownGracefully()
 }
 
-class NettyStringDecoder extends MessageToMessageDecoder[ByteBuf] {
+/**
+ * Method for decode messages from binary form
+ */
+class NettyMessageDecoder extends MessageToMessageDecoder[ByteBuf] {
   private def readString(msg : ByteBuf) = {
     val size = msg.readInt()
     val buf = new Array[Byte](size)
@@ -112,22 +164,32 @@ class NettyStringDecoder extends MessageToMessageDecoder[ByteBuf] {
   }
 
   override def decode(ctx : ChannelHandlerContext, msg : ByteBuf, out : java.util.List[Object]) {
-    msg.readInt() match {
+    val r = msg.readInt() match {
       case 0 => out.add(ListTasks)
       case 1 => out.add(StartWorkflow(msg.readInt()))
       case 2 => out.add(Completion(readString(msg)))
       case 3 => out.add(WorkflowNotStarted(readString(msg), readString(msg)))
       case 4 => out.add(NimrodTaskSubmission(readString(msg), readString(msg), readStringList(msg), msg.readBoolean(), msg.readInt()))
       case 5 => out.add(TaskStarted(readString(msg), readString(msg), readStep(msg)))
-      case 6 => out.add(TaskCompleted(readString(msg), readString(msg), readStep(msg)))
+      case 6 => {
+        System.err.println("task completed")
+
+        out.add(TaskCompleted(readString(msg), readString(msg), readStep(msg)))
+      }
       case 7 => out.add(TaskFailed(readString(msg), readString(msg), msg.readInt(), readStep(msg)))
       case 8 => out.add(StringMessage(readString(msg), readString(msg), msg.readBoolean(), msg.readBoolean()))
+      case 9 => out.add(Poll(readString(msg)))
+      case 10 => out.add(Start(readString(msg)))
+      case -1 => out.add(Die)
       case _ => System.err.println("Invalid message to decode")
     }
   }
 }
 
-class NettyStringEncoder extends ChannelOutboundHandlerAdapter {
+/**
+ * Method for encoding messages in binary form
+ */
+class NettyMessageEncoder extends ChannelOutboundHandlerAdapter {
   private def writeString(buf : ByteBuf, str : String) {
     val bytes = str.toString().getBytes()
     buf.capacity(buf.capacity() + 4 + bytes.size)
@@ -207,10 +269,20 @@ class NettyStringEncoder extends ChannelOutboundHandlerAdapter {
         writeString(buf, key)
         writeString(buf, text)
         writeBoolean(buf, nl)
-        writeBoolean(buf, nl)
+        writeBoolean(buf, err)
+      }
+      case Poll(key) => {
+        buf.writeInt(9)
+        writeString(buf, key)
+      }
+      case Start(key) => {
+        buf.writeInt(10)
+        writeString(buf, key)
+      }
+      case Die => {
+        buf.writeInt(-1)
       }
     }
-    System.err.println("encoded " + msg)
     ctx.write(buf, promise)
   }
 }

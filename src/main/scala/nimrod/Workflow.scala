@@ -1,19 +1,18 @@
 package nimrod
 
-import akka.actor._
-
-
 /**
  * Represents the workflow of the script, an implicit instance is available throughout the script
  */
 class Workflow(val name : String, val key : String) extends TaskMessenger {
   private var tasks : List[Task] = Nil
 
+  /** Add a task to the workflow */
   def register[T <: Task](task : T) : T = {
     tasks ::= task
     task
   }
 
+  /** Add a set of tasks as a subtask to the workflow */
   def register(context : Context) : Task = {
     val task = new Task {
       override def exec = { context.workflow.start(1, Workflow.this.messenger.getOrElse(throw new RuntimeException("Messenger not set when calling sub-context"))) ; 0 }
@@ -25,6 +24,7 @@ class Workflow(val name : String, val key : String) extends TaskMessenger {
     task
   }
 
+  /** Replace a task in the workflow */
   def update[T <: Task](old : T, task : T) : T = {
     tasks = tasks map (t => {
       if(t eq old) {
@@ -36,11 +36,14 @@ class Workflow(val name : String, val key : String) extends TaskMessenger {
     task
   }
 
+  /** Remove all tasks from the workflow */
   def reset { 
     tasks = Nil 
   }
 
+  /** Where the workflow is at the moment */
   var currentStep = Step(List((0,0)))
+  /** How many tasks this workflow will execute (subcontexts count as 1 */
   def totalSteps = tasks.size
   
   private def pad(i : Int) = {
@@ -62,6 +65,7 @@ class Workflow(val name : String, val key : String) extends TaskMessenger {
     def println(text : String) = messenger.map(_.println(text))
   }
 
+  /** List all tasks in the workflow (send the result back to the messenger */
   def list(msg : Messenger = DefaultMessenger) {
     messenger = Some(msg)
     currentStep = currentStep set (1, tasks.size)
@@ -71,6 +75,10 @@ class Workflow(val name : String, val key : String) extends TaskMessenger {
     }
   }
 
+  /** Start the workflow
+   * @param step The step to start at
+   * @param msg Where to send messages as generates
+   */
   def start(step : Int, msg : Messenger = DefaultMessenger) {
     if(tasks.isEmpty) {
       throw new WorkflowException("No tasks defined")
@@ -95,41 +103,22 @@ class Workflow(val name : String, val key : String) extends TaskMessenger {
     }    
   }
   
+  /**
+   * Fail the current building of the workflow (use cautiously)
+   */
   def compileFail(message : String) {
     System.err.println(message)
     System.exit(-1)
   }
 }
 
-/*class WorkflowActor(workflow : Workflow) extends Actor {
-  def receive = {
-    case ListTasks => {
-      try {
-        workflow.list(new AkkaMessenger(sender, workflow.key))
-      } catch {
-        case WorkflowException(msg,_) => {
-          sender ! WorkflowNotStarted(workflow.key, msg)
-        }
-      }
-      sender ! Completion(workflow.key)
-    }
-    case StartWorkflow(step : Int) => {
-      try {
-        workflow.start(step, new AkkaMessenger(sender, workflow.key))
-      } catch {
-        case WorkflowException(msg,_) => {
-          sender ! WorkflowNotStarted(workflow.key, msg)
-        }
-      }
-      sender ! Completion(workflow.key)
-    }
-  }
-}*/
-
+/**
+ * The actor for this workflow. Iterate this to listen to messages
+ */
 class WorkflowActor(workflow : Workflow) extends WaitQueue[Message] {
   def list {
     try {
-      workflow.list(new AkkaMessenger(this, workflow.key))
+      workflow.list(new ActorMessenger(this, workflow.key))
     } catch {
       case WorkflowException(msg, _) => {
         this ! WorkflowNotStarted(workflow.key, msg)
@@ -139,7 +128,7 @@ class WorkflowActor(workflow : Workflow) extends WaitQueue[Message] {
   }
   def start(step : Int) {
     try {
-      workflow.start(step, new AkkaMessenger(this, workflow.key))
+      workflow.start(step, new ActorMessenger(this, workflow.key))
     } catch {
       case WorkflowException(msg, _) => {
         this ! WorkflowNotStarted(workflow.key, msg)
@@ -149,64 +138,63 @@ class WorkflowActor(workflow : Workflow) extends WaitQueue[Message] {
   }
 }
 
+/** An iterator that blocks on next until a value is available */
+class WaitQueue[M] extends Iterator[M] {
+  private var finished = false
+  private var queue = collection.mutable.Queue[M]()
 
-
-trait CanPrint {
-  def print(text : String) : Unit
-  def println(text : String) : Unit
-}
-
-trait TaskMessenger extends CanPrint {
-  def err : CanPrint
-}
-
-trait Messenger extends TaskMessenger {
-  def startTask(task : Task, step : Step) : Unit
-  def endTask(task : Task, step : Step) : Unit
-  def failTask(task : Task, errorCode : Int, step : Step) : Unit
-}
-
-class AkkaMessenger(actor : WaitQueue[Message], key : String) extends Messenger {
-  def startTask(task : Task, step : Step) = actor ! TaskStarted(key, task.toString(), step)
-  def endTask(task : Task, step : Step) = actor ! TaskCompleted(key, task.toString(), step)
-  def failTask(task : Task, errorCode : Int, step : Step) = actor ! TaskFailed(key, task.toString(), errorCode, step)
-  def print(text : String) = actor ! StringMessage(key, text)
-  def println(text : String) = actor ! StringMessage(key, text,true)
-  object err extends CanPrint {
-    def print(text : String) = actor ! StringMessage(key, text,false,true)
-    def println(text : String) = actor ! StringMessage(key, text,true,true)
+  def ! (m : M) = this.synchronized {    
+    queue.enqueue(m)
+    this.notify()
   }
-}
 
-object DefaultMessenger extends Messenger {
-  def startTask(task : Task, step : Step) = System.out.println("[\033[0;32m " + step + " \033[m] Start: " + task)
-  def endTask(task : Task, step : Step) = System.out.println("[\033[0;32m " + step + " \033[m] Finished: " + task)
-  def failTask(task : Task, errorCode : Int, step : Step) = System.out.println("[\033[0;31m " + step + " \033[m] Failed [" + errorCode + "]: " + task)
-  def print(text : String) = System.out.print(text)
-  def println(text : String) = System.out.println(text)
-  object err extends CanPrint {
-    def print(text : String) = System.err.print(text)
-    def println(text : String) = System.err.println(text)
+  def stop = finished = true
+
+  def hasNext = this.synchronized {
+    !finished || !queue.isEmpty
+  }
+
+  def next : M = if(queue.isEmpty) {
+     if(finished) {
+       throw new NoSuchElementException()
+     } else {
+       this.synchronized {
+         this.wait()
+       }
+       return next
+     }
+  } else {
+    this.synchronized {
+      if(!queue.isEmpty) {
+        return queue.dequeue()
+      }
+    }
+    return next
   }
 }
 
 /** Thrown if the workflow could not be executed (not if the execution failed) */
 case class WorkflowException(msg : String = null, cause : Exception = null) extends RuntimeException(msg,cause)
 
+/** A step in this workflow */
 case class Step(val number : List[(Int,Int)]) {
   require(!number.isEmpty)
+  /** Move forward n steps */
   def +(n : Int) = number match {
     case (x,y) :: steps => Step((x+n,y) :: steps)
     case _ => throw new RuntimeException("Unreachable")
   }
+  /** Increase the number of steps to do */
   def incTotal(n : Int = 1) = number match {
     case (x,y) :: steps => Step((x,y+n) :: steps)
     case _ => throw new RuntimeException("Unreachable")
   }
+  /** Move into substep (n, N) */
   def set(n : Int, N : Int) = number match {
     case (x,y) :: steps => Step((n,N) :: steps)
     case _ => throw new RuntimeException("Unreachable")
   }
+  /** Move into substep (0,0) */
   def push = Step((0,0) :: number)
   override def toString = number.map(_._1).mkString(".") + " / " + number.map(_._2).mkString(".")
 }

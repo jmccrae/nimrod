@@ -2,20 +2,53 @@ package nimrod
 
 import java.io.{File, PrintStream}
 
+/**
+ * An artifact is a resource for computation
+ */
 trait Artifact {
+  /** Is this artifact usable as an input to the process */
   def validInput : Boolean
+  /** Is this artifact usable as an output for the process */
   def validOutput : Boolean
 }
 
+/**
+ * A file to be used as an artifact
+ */
 case class FileArtifact(file : File) extends Artifact {
   def validInput = file.exists() && file.canRead()
   def validOutput = !file.exists() || file.canWrite()
-  def asStream : PrintStream = new PrintStream(file)
-  def asSource : scala.io.Source = scala.io.Source.fromFile(file)
+  /** 
+   * Open this file to write to line by line
+   * @throws ArtifactException If the file cannot be written to
+   */
+  def asStream : PrintStream = {
+    if(!validOutput) {
+      throw new ArtifactException("Invalid output artifact")
+    }
+    new PrintStream(file)
+  }
+  /**
+   * Open this file as a source to read from line by line
+   * @throws ArtifactException If the file cannot be read
+   */
+  def asSource : scala.io.Source = {
+    if(!validInput) {
+      throw new ArtifactException("Invalid input artifact")
+    }
+    scala.io.Source.fromFile(file)
+  }
 }
 
+/**
+ * A generic artifact wrapping an option
+ */
 class GenericArtifact[E](e : Option[E]) extends Artifact {
   def validInput = e != None
   def validOutput = true
 }
 
+/**
+ * Indicates that an artifact cannot be used as desired
+ */
+class ArtifactException(msg : String = "", cause : Throwable = null) extends RuntimeException(msg, cause)
