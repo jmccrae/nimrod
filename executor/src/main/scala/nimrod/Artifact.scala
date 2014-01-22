@@ -44,10 +44,18 @@ case class FileArtifact(file : File) extends Artifact {
    */
   def lines : Streamable[Int, String] = Streamable.enumerated(asSource.getLines)
 
+  /**
+   * Mark this artifact as temporary (delete on exit)
+   */
   def temporary : FileArtifact = {
     file.deleteOnExit()
     return this
   }
+
+  /**
+   * Get the path for this artifact as a string
+   */
+  def pathString : String = file.getAbsolutePath()
 }
 
 object FileArtifact {

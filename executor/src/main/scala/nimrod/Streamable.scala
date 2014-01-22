@@ -20,12 +20,17 @@ trait Streamable[K, V] {
    * Create an iterator on this data, this normally executes all maps, combines and reduces further down the chain
    */
   def iterator : Iterator[(K, Seq[V])]
+  /**
+   * An identifier to the user of what this task does
+   */
+  def name : String
 
 
   /**
    * Cogroup this streamable with another streamable
    */
-  def cogroup[W](streamable : Streamable[K, W])(implicit ordering : Ordering[K]) : Streamable[K, (Seq[V], Seq[W])] = new streams.SeqStreamable(new Iterator[(K, (Seq[V], Seq[W]))] {
+  def cogroup[W](streamable : Streamable[K, W])(implicit ordering : Ordering[K]) : Streamable[K, (Seq[V], Seq[W])] = new
+  streams.SeqStreamable("CoGroup(" + this.name + "," + streamable.name + ")", new Iterator[(K, (Seq[V], Seq[W]))] {
     lazy val iter1 = new streams.PeekableIterator(iterator)
     lazy val iter2 = new streams.PeekableIterator(streamable.iterator)
 
@@ -64,6 +69,18 @@ trait Streamable[K, V] {
   })
 
   /**
+   * Translate the values only of a streamable (single threaded operation)
+   */
+  def translate[W](by : V => W)(implicit ordering : Ordering[K]) : Streamable[K, W] = new streams.IterStreamable[K,W]("Translate(" + name +
+    ")", new Iterator[(K, Seq[W])] {
+    lazy val iter = iterator
+    def hasNext = iter.hasNext
+    def next = iter.next match {
+      case (k, vs) => (k, vs.map(by))
+    }
+  })
+
+  /**
    * Dump a map into a file
    * @param file The file to write to
    * @param separator A separator between the string representations of the objects
@@ -77,6 +94,7 @@ trait Streamable[K, V] {
       }
       0
     }
+    override def toString = name + " > " + file.pathString
     override def messenger = workflow
   })
   /** 
@@ -100,28 +118,49 @@ trait Streamable[K, V] {
    * Filter this map by the given function
    */
   def filter(by : (K, V) => Boolean)(implicit ordering : Ordering[K]) = map { (k, v) => if(by(k, v)) { Seq((k,v)) } else { Seq() } }
+  /**
+   * Apply an operation to each element of this map in serial
+   */
+  def foreach(by : (K, V) => Unit)(implicit workflow : Workflow) : Task = workflow.register(new Task {
+    override def exec = {
+      for((k, vs) <- iterator) {
+        for(v <- vs) {
+          by(k, v)
+        }
+      }
+      0
+    }
+    override def toString = "Application on " + name
+    override def messenger = workflow
+  })
+  /**
+   * Convert this to an in-memory(!) map
+   */
+  def toMap = iterator.toMap
 }
 
 object Streamable {
   /** Create a streamable from a sequence */
-  def apply[K, V](seq : Seq[(K, V)])(implicit ordering : Ordering[K]) = new streams.SeqStreamable((seq.sortBy(_._1)).iterator)
+  def apply[K, V](seq : Seq[(K, V)])(implicit ordering : Ordering[K]) : Streamable[K, V] = 
+    new streams.SeqStreamable(seq.toString, (seq.sortBy(_._1)).iterator)
   /** Create a streamable from a file
    * @param artifact The file to read from
    * @param separator The separator between records
    */
-  def fromFile(artifact : FileArtifact, separator : String = "\t") = new streams.SeqStreamable(artifact.asSource.getLines.flatMap { 
+  def fromFile(artifact : FileArtifact, separator : String = "\t") : Streamable[String, Seq[String]] = 
+    new streams.SeqStreamable("file:" + artifact.pathString, artifact.asSource.getLines.flatMap { 
     line => {
       val arr = line.split(separator)
       if(arr.length == 0) {
         None
       } else {
-        Some((arr.head,arr.tail))
+        Some((arr.head,arr.tail.toSeq))
       }
     }
   })
   /**
    * Create a streamable whose keys are simply the element (line) number
    */
-  def enumerated[V](seq : Iterable[V]) = new streams.SeqStreamable((Stream.from(1) zip seq).iterator)
-  def enumerated[V](seq : Iterator[V]) = new streams.SeqStreamable(Stream.from(1).iterator zip seq)
+  def enumerated[V](seq : Iterable[V]) = new streams.SeqStreamable(seq.toString, (Stream.from(1) zip seq).iterator)
+  def enumerated[V](seq : Iterator[V]) = new streams.SeqStreamable(seq.toString, Stream.from(1).iterator zip seq)
 }

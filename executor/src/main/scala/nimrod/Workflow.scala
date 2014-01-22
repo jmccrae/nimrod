@@ -9,6 +9,7 @@ class Workflow(val name : String, val key : String) extends TaskMessenger {
   /** Add a task to the workflow */
   def register[T <: Task](task : T) : T = {
     tasks ::= task
+    currentStep.incTotal()
     task
   }
 
@@ -18,8 +19,12 @@ class Workflow(val name : String, val key : String) extends TaskMessenger {
       override def exec = { context.workflow.start(1, Workflow.this.messenger.getOrElse(throw new RuntimeException("Messenger not set when calling sub-context"))) ; 0 }
       def name = "Subtask"
       protected def messenger = Workflow.this.messenger.getOrElse(throw new RuntimeException("Messenger not set when calling sub-context"))
+      override def toString = context.toString
     }
+    val total = context.workflow.currentStep.total
     context.workflow.currentStep = currentStep.push
+    context.workflow.currentStep.incTotal(total)
+    currentStep.incTotal()
     tasks ::= task
     task
   }
@@ -42,7 +47,7 @@ class Workflow(val name : String, val key : String) extends TaskMessenger {
   }
 
   /** Where the workflow is at the moment */
-  var currentStep = Step(List((0,0)))
+  var currentStep = new Step()
   /** How many tasks this workflow will execute (subcontexts count as 1 */
   def totalSteps = tasks.size
   
@@ -68,7 +73,7 @@ class Workflow(val name : String, val key : String) extends TaskMessenger {
   /** List all tasks in the workflow (send the result back to the messenger */
   def list(msg : Messenger = DefaultMessenger) {
     messenger = Some(msg)
-    currentStep = currentStep set (1, tasks.size)
+    currentStep := 1
     for(task <- tasks.reverse) {
       msg.println("  " + currentStep + ". " + task.toString)
       currentStep += 1
@@ -84,7 +89,7 @@ class Workflow(val name : String, val key : String) extends TaskMessenger {
       throw new WorkflowException("No tasks defined")
     }
     messenger = Some(msg)
-    currentStep = currentStep set(step, tasks.size)
+    currentStep := step
     for(task <- tasks.reverse.drop(step-1)) {      
       for(req <- task.requirements) {
         if(!req.validInput) {
@@ -92,13 +97,20 @@ class Workflow(val name : String, val key : String) extends TaskMessenger {
         }
       }
       
-      msg.startTask(task, currentStep)
-      var errorCode = task.exec
+      msg.startTask(task, currentStep.copy)
+      val errorCode = try {
+        task.exec 
+      } catch {
+        case t : Throwable => {
+          t.printStackTrace()
+          256
+        }
+      }
       if(errorCode != 0) {
-        msg.failTask(task, errorCode, currentStep)
+        msg.failTask(task, errorCode, currentStep.copy)
         return
       }
-      msg.endTask(task, currentStep)
+      msg.endTask(task, currentStep.copy)
       currentStep += 1
     }    
   }
@@ -138,38 +150,71 @@ class WorkflowActor(workflow : Workflow) extends WaitQueue[Message] {
   }
 }
 
-/** An iterator that blocks on next until a value is available */
+/** An iterator that blocks on next until a value is available.
+ * It is assumed that only a single thread iterates this object, but many threads may insert
+ * 
+ */
 class WaitQueue[M] extends Iterator[M] {
   private var finished = false
   private var queue = collection.mutable.Queue[M]()
 
-  def ! (m : M) = this.synchronized {    
-    queue.enqueue(m)
+  def ! (m : M) = {
+    if(finished) {
+      throw new IllegalStateException("Cannot add to a wait queue, which is already finished")
+    } else {
+      this.synchronized {    
+        queue.enqueue(m)
+        this.notify()
+      }
+    }
+  }
+
+  def stop = this.synchronized { 
+    finished = true
     this.notify()
   }
 
-  def stop = finished = true
-
-  def hasNext = this.synchronized {
-    !finished || !queue.isEmpty
+  def hasNext : Boolean = {
+    if(queue.isEmpty) {
+      if(finished) {
+        return false
+      } else {
+        // Wait for the next element or stop signal
+        this.synchronized {
+          this.wait()
+        }
+      }
+      // Either finished has been set or a new element is in the queue
+      return !finished || !queue.isEmpty
+    } else {
+      return true
+    }
   }
 
-  def next : M = if(queue.isEmpty) {
-     if(finished) {
-       throw new NoSuchElementException()
-     } else {
-       this.synchronized {
-         this.wait()
-       }
-       return next
-     }
-  } else {
-    this.synchronized {
-      if(!queue.isEmpty) {
-        return queue.dequeue()
+  def next : M = {
+    if(queue.isEmpty) {
+      if(finished) {
+        // Queue is empty and we are finished (no more elements)
+        throw new NoSuchElementException()
+      } else {
+        // Empty but not finished wait
+        this.synchronized {
+          this.wait()
+        }
+        // Did we finish?
+        if(!finished) {
+          return this.synchronized {
+            queue.dequeue()
+          }
+        } else {
+          throw new NoSuchElementException()
+        }
+      }
+    } else {
+      return this.synchronized {
+        queue.dequeue()
       }
     }
-    return next
   }
 }
 
@@ -177,24 +222,41 @@ class WaitQueue[M] extends Iterator[M] {
 case class WorkflowException(msg : String = null, cause : Exception = null) extends RuntimeException(msg,cause)
 
 /** A step in this workflow */
-case class Step(val number : List[(Int,Int)]) {
+class Step(next : Option[Step] = None) {
+  private var _step : Int = 0
+  private var _total : Int = 0
+  def step = _step
+  def total = _total
   require(!number.isEmpty)
+  def number : List[(Int,Int)] = next match {
+    case Some(n) => (_step, _total) :: n.number
+    case None => (_step, _total) :: Nil
+  }
   /** Move forward n steps */
-  def +(n : Int) = number match {
-    case (x,y) :: steps => Step((x+n,y) :: steps)
-    case _ => throw new RuntimeException("Unreachable")
-  }
+  def +=(n : Int) { _step += n }
   /** Increase the number of steps to do */
-  def incTotal(n : Int = 1) = number match {
-    case (x,y) :: steps => Step((x,y+n) :: steps)
-    case _ => throw new RuntimeException("Unreachable")
-  }
-  /** Move into substep (n, N) */
-  def set(n : Int, N : Int) = number match {
-    case (x,y) :: steps => Step((n,N) :: steps)
-    case _ => throw new RuntimeException("Unreachable")
-  }
+  def incTotal(n : Int = 1) { _total += n }
   /** Move into substep (0,0) */
-  def push = Step((0,0) :: number)
-  override def toString = number.map(_._1).mkString(".") + " / " + number.map(_._2).mkString(".")
+  def push = new Step(Some(this))
+  /** Set the current step */
+  def :=(n : Int) { _step = n }
+  /** Set the current step and total */
+  def set(n : Int, N : Int) = {
+    _step = n
+    _total = N
+    this
+  }
+  /** Make a copy of this */
+  def copy : Step = new Step(next.map(_.copy)).set(_step, total)
+  override def toString = number.reverse.map(_._1).mkString(".") + " / " + number.reverse.map(_._2).mkString(".")
+}
+
+object Step {
+  def apply(elems : List[(Int,Int)]) : Step = {
+    elems match {
+      case (n,m) :: Nil => new Step(None).set(n, m)
+      case (n,m) :: xs => new Step(Some(Step(xs))).set(n, m)
+      case Nil => throw new RuntimeException("Empty step list")
+    }
+  }
 }

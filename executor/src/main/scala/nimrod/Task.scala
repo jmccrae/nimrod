@@ -61,3 +61,27 @@ object task {
   /** Add all task from a context as subclasses */
   def apply(context : Context)(implicit workflow : Workflow) = workflow.register(context)
 }
+
+object result {
+  /** Add a function as a task which returns a result */
+  def apply[T](name : String)(action : => T)(implicit workflow : Workflow) : Result[T] = {
+    val result = new Result[T]()
+    workflow.register(new Task {
+      override def exec = { result.set(action) ; 0 }
+      override def toString = name
+      protected val messenger = workflow
+    })
+    result
+  }
+}
+
+class Result[T] {
+  private var value : Option[T] = None
+  def apply() = value.get
+  def set(t : T) {
+    value = Some(t)
+  }
+}
+
+
+  

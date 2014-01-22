@@ -22,6 +22,7 @@ trait Messenger extends TaskMessenger {
   def startTask(task : Task, step : Step) : Unit
   def endTask(task : Task, step : Step) : Unit
   def failTask(task : Task, errorCode : Int, step : Step) : Unit
+  def complete : Unit
 }
 
 /**
@@ -30,12 +31,18 @@ trait Messenger extends TaskMessenger {
 class ActorMessenger(actor : WaitQueue[Message], key : String) extends Messenger {
   def startTask(task : Task, step : Step) = actor ! TaskStarted(key, task.toString(), step)
   def endTask(task : Task, step : Step) = actor ! TaskCompleted(key, task.toString(), step)
-  def failTask(task : Task, errorCode : Int, step : Step) = actor ! TaskFailed(key, task.toString(), errorCode, step)
+  def failTask(task : Task, errorCode : Int, step : Step) = {
+    actor ! TaskFailed(key, task.toString(), errorCode, step)
+    actor.stop
+  }
   def print(text : String) = actor ! StringMessage(key, text)
   def println(text : String) = actor ! StringMessage(key, text,true)
   object err extends CanPrint {
     def print(text : String) = actor ! StringMessage(key, text,false,true)
     def println(text : String) = actor ! StringMessage(key, text,true,true)
+  }
+  def complete {
+    actor.stop
   }
 }
 
@@ -51,6 +58,9 @@ object DefaultMessenger extends Messenger {
   object err extends CanPrint {
     def print(text : String) = System.err.print(text)
     def println(text : String) = System.err.println(text)
+  }
+  def complete {
+    System.exit(-1)
   }
 }
 

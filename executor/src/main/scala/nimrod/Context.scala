@@ -22,6 +22,7 @@ trait Context extends TaskMessenger {
     def println(text : String) { workflow.err.println(text) }
   }
   val opts = new Opts(args)
+  override def toString = name
 }
 
 object Context {

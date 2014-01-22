@@ -19,7 +19,6 @@ object NimrodEngine {
    * @param beginStep Where to start
    */
   def submit(name : String, program : String, args : List[String], listMode : Boolean, beginStep : Int) : Iterator[Message] = {
-    val executor = Executors.newSingleThreadExecutor()
     val programSB = new StringBuilder()
     val key = genkey
 
@@ -35,24 +34,28 @@ object NimrodEngine {
     programSB.append("};")
     programSB.append("ThisContext.workflow")
     try {
-      val workflow = new Eval()(programSB.toString()).asInstanceOf[Workflow]
-      val workflowActor = new WorkflowActor(workflow)
-      if(listMode) {
-        executor.execute(new Runnable {
-          def run { workflowActor.list }
-        })
-      } else {
-        executor.execute(new Runnable {
-          def run { workflowActor.start(beginStep) }
-        })
+      submitWorkflow(new Eval()(programSB.toString()).asInstanceOf[Workflow], listMode, beginStep)
+    } catch {
+      case x : Eval.CompilerException => {
+        Seq(WorkflowNotStarted(name, x.getMessage())).iterator
       }
-      executor.shutdown()
-        workflowActor
-      } catch {
-        case x : Eval.CompilerException => {
-          Seq(WorkflowNotStarted(name, x.getMessage())).iterator
-        }
-      }
+    }
+  }
+
+  def submitWorkflow(workflow : Workflow, listMode : Boolean, beginStep : Int) : Iterator[Message] = {
+    val executor = Executors.newSingleThreadExecutor()
+    val workflowActor = new WorkflowActor(workflow)
+    if(listMode) {
+      executor.execute(new Runnable {
+        def run { workflowActor.list }
+      })
+    } else {
+      executor.execute(new Runnable {
+        def run { workflowActor.start(beginStep) }
+      })
+    }
+    executor.shutdown()
+    workflowActor
   }
 
   /**
@@ -62,9 +65,9 @@ object NimrodEngine {
     case WorkflowNotStarted(key, msg) => {
       System.err.println(msg)
     }
-    case TaskStarted(_, name, step) => System.out.println("[\033[0;32m " + step + " \033[m] Start: " + task)
-    case TaskCompleted(_, name, step) => System.out.println("[\033[0;32m " + step + " \033[m] Finished: " + task)
-    case TaskFailed(_, name, errorCode, step) => System.out.println("[\033[0;31m " + step + " \033[m] Failed [" + errorCode + "]: " + task)
+    case TaskStarted(_, name, step) => System.out.println("[\033[0;32m " + step + " \033[m] Start: " + name)
+    case TaskCompleted(_, name, step) => System.out.println("[\033[0;32m " + step + " \033[m] Finished: " + name)
+    case TaskFailed(_, name, errorCode, step) => System.out.println("[\033[0;31m " + step + " \033[m] Failed [" + errorCode + "]: " + name)
     case StringMessage(_, text, true, true) => System.err.println(text)
     case StringMessage(_, text, false, true) => System.err.print(text)
     case StringMessage(_, text, true, false) => System.out.println(text)
@@ -81,6 +84,12 @@ object NimrodEngine {
       programSB.append(line + ln)
     }
     for(msg <- submit(name, programSB.toString(), args, listMode, beginStep)) {
+      cli(msg)
+    }
+  }
+
+  def local(context : Context, listMode : Boolean = false, beginStep : Int = 1) = {
+    for(msg <- submitWorkflow(context.workflow, listMode, beginStep)) {
       cli(msg)
     }
   }
