@@ -23,6 +23,8 @@ trait Messenger extends TaskMessenger {
   def endTask(task : Task, step : Step) : Unit
   def failTask(task : Task, errorCode : Int, step : Step) : Unit
   def complete : Unit
+  def monitorReset(n : Int) : Unit
+  def pip : Unit
 }
 
 /**
@@ -44,6 +46,8 @@ class ActorMessenger(actor : WaitQueue[Message], key : String) extends Messenger
   def complete {
     actor.stop
   }
+  def monitorReset(n : Int) = actor ! MonitorReset(key, n)
+  def pip = actor ! Pip(key)
 }
 
 /**
@@ -61,6 +65,11 @@ object DefaultMessenger extends Messenger {
   }
   def complete {
     System.exit(-1)
+  }
+  def monitorReset(n : Int) = System.err.println("")
+  def pip = { 
+    System.err.print(".")
+    System.err.flush()
   }
 }
 

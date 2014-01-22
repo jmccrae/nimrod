@@ -57,6 +57,15 @@ object NimrodEngine {
     executor.shutdown()
     workflowActor
   }
+  private var currentMonitorLimit = 0
+  private var printedPips = 0
+
+  private def flushErr {
+    if(printedPips > 0) {
+      System.err.println()
+      printedPips = 0
+    }
+  }
 
   /**
    * Interpret a message as something to show to a user on the command line
@@ -65,13 +74,42 @@ object NimrodEngine {
     case WorkflowNotStarted(key, msg) => {
       System.err.println(msg)
     }
-    case TaskStarted(_, name, step) => System.out.println("[\033[0;32m " + step + " \033[m] Start: " + name)
-    case TaskCompleted(_, name, step) => System.out.println("[\033[0;32m " + step + " \033[m] Finished: " + name)
-    case TaskFailed(_, name, errorCode, step) => System.out.println("[\033[0;31m " + step + " \033[m] Failed [" + errorCode + "]: " + name)
+    case TaskStarted(_, name, step) =>  System.out.println("[\033[0;32m " + step + " \033[m] Start: " + name)
+    case TaskCompleted(_, name, step) => {
+      flushErr
+      System.out.println("[\033[0;32m " + step + " \033[m] Finished: " + name)
+    }
+    case TaskFailed(_, name, errorCode, step) => {
+      flushErr
+      System.out.println("[\033[0;31m " + step + " \033[m] Failed [" + errorCode + "]: " + name)
+    }
     case StringMessage(_, text, true, true) => System.err.println(text)
     case StringMessage(_, text, false, true) => System.err.print(text)
     case StringMessage(_, text, true, false) => System.out.println(text)
     case StringMessage(_, text, false, false) => System.out.print(text)
+    case MonitorReset(_, n) => {
+      currentMonitorLimit = n
+      flushErr
+    }
+    case Pip(_) => {
+      if(currentMonitorLimit <= 0) {
+        System.err.print(".")
+        System.err.flush()
+        printedPips += 1
+      } else {
+        val n0 = (printedPips.toDouble / currentMonitorLimit * 80).toInt
+        printedPips += 1
+        val n1 = (printedPips.toDouble / currentMonitorLimit * 80).toInt
+        if(n1 - n0 > 0) {
+          System.err.print("\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b\b")
+          System.err.print("[" + List.fill(n1)("=").mkString("") + List.fill(80 - n1)(" ").mkString("") + "]")
+          System.err.flush()
+        }
+        if(printedPips == currentMonitorLimit) {
+          System.err.println()
+        }
+      }
+    }
   }
 
   /**

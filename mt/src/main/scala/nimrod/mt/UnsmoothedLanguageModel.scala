@@ -15,7 +15,7 @@ class UnsmoothedLanguageModel(override val args : Seq[String]) extends Context {
   val leftCounts = FileArtifact.temporary
   val probs = FileArtifact.temporary
 
-  (corpus.lines.mapCombine {
+  (corpus.lines(monitor).mapCombine {
     (no,line) => {
       val tokens = line.split("\\s+").toSeq
       (1 until N) flatMap {

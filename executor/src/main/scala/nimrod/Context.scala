@@ -22,6 +22,7 @@ trait Context extends TaskMessenger {
     def println(text : String) { workflow.err.println(text) }
   }
   val opts = new Opts(args)
+  val monitor = new MessengerProgressMonitor(workflow)
   override def toString = name
 }
 

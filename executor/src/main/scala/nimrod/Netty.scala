@@ -180,6 +180,8 @@ class NettyMessageDecoder extends MessageToMessageDecoder[ByteBuf] {
       case 8 => out.add(StringMessage(readString(msg), readString(msg), msg.readBoolean(), msg.readBoolean()))
       case 9 => out.add(Poll(readString(msg)))
       case 10 => out.add(Start(readString(msg)))
+      case 11 => out.add(MonitorReset(readString(msg), msg.readInt()))
+      case 12 => out.add(Pip(readString(msg)))
       case -1 => out.add(Die)
       case _ => System.err.println("Invalid message to decode")
     }
@@ -278,6 +280,15 @@ class NettyMessageEncoder extends ChannelOutboundHandlerAdapter {
       case Start(key) => {
         buf.writeInt(10)
         writeString(buf, key)
+      }
+      case MonitorReset(key, n) => {
+        buf.writeInt(11)
+        writeString(buf, key)
+        writeInt(buf, n)
+      }
+      case Pip(key) => {
+        buf.writeInt(12)
+        writeString(buf,key)
       }
       case Die => {
         buf.writeInt(-1)

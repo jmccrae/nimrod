@@ -1,6 +1,6 @@
 name := "Nimrod"
 
-version := "0.14.1"
+version in ThisBuild := "0.14.1"
 
 scalaVersion in ThisBuild := "2.10.3"
 

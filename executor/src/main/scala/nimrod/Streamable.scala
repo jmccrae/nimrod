@@ -29,7 +29,7 @@ trait Streamable[K, V] {
   /**
    * Cogroup this streamable with another streamable
    */
-  def cogroup[W](streamable : Streamable[K, W])(implicit ordering : Ordering[K]) : Streamable[K, (Seq[V], Seq[W])] = new
+  def cogroup[W](streamable : Streamable[K, W], monitor : ProgressMonitor = NullProgressMonitor)(implicit ordering : Ordering[K]) : Streamable[K, (Seq[V], Seq[W])] = new
   streams.SeqStreamable("CoGroup(" + this.name + "," + streamable.name + ")", new Iterator[(K, (Seq[V], Seq[W]))] {
     lazy val iter1 = new streams.PeekableIterator(iterator)
     lazy val iter2 = new streams.PeekableIterator(streamable.iterator)
@@ -66,19 +66,19 @@ trait Streamable[K, V] {
           }
         }
     }
-  })
+  }, monitor)
 
   /**
    * Translate the values only of a streamable (single threaded operation)
    */
-  def translate[W](by : V => W)(implicit ordering : Ordering[K]) : Streamable[K, W] = new streams.IterStreamable[K,W]("Translate(" + name +
+  def translate[W](by : V => W, monitor : ProgressMonitor = NullProgressMonitor)(implicit ordering : Ordering[K]) : Streamable[K, W] = new streams.IterStreamable[K,W]("Translate(" + name +
     ")", new Iterator[(K, Seq[W])] {
     lazy val iter = iterator
     def hasNext = iter.hasNext
     def next = iter.next match {
       case (k, vs) => (k, vs.map(by))
     }
-  })
+  }, monitor)
 
   /**
    * Dump a map into a file
@@ -141,13 +141,13 @@ trait Streamable[K, V] {
 
 object Streamable {
   /** Create a streamable from a sequence */
-  def apply[K, V](seq : Seq[(K, V)])(implicit ordering : Ordering[K]) : Streamable[K, V] = 
-    new streams.SeqStreamable(seq.toString, (seq.sortBy(_._1)).iterator)
+  def apply[K, V](seq : Seq[(K, V)], monitor : ProgressMonitor = NullProgressMonitor)(implicit ordering : Ordering[K]) : Streamable[K, V] = 
+    new streams.SeqStreamable(seq.toString, (seq.sortBy(_._1)).iterator, monitor)
   /** Create a streamable from a file
    * @param artifact The file to read from
    * @param separator The separator between records
    */
-  def fromFile(artifact : FileArtifact, separator : String = "\t") : Streamable[String, Seq[String]] = 
+  def fromFile(artifact : FileArtifact, separator : String = "\t", monitor : ProgressMonitor = NullProgressMonitor) : Streamable[String, Seq[String]] = 
     new streams.SeqStreamable("file:" + artifact.pathString, artifact.asSource.getLines.flatMap { 
     line => {
       val arr = line.split(separator)
@@ -157,10 +157,12 @@ object Streamable {
         Some((arr.head,arr.tail.toSeq))
       }
     }
-  })
+  }, monitor)
   /**
    * Create a streamable whose keys are simply the element (line) number
    */
-  def enumerated[V](seq : Iterable[V]) = new streams.SeqStreamable(seq.toString, (Stream.from(1) zip seq).iterator)
-  def enumerated[V](seq : Iterator[V]) = new streams.SeqStreamable(seq.toString, Stream.from(1).iterator zip seq)
+  def enumerated[V](seq : Iterable[V], monitor : ProgressMonitor = NullProgressMonitor) = new streams.SeqStreamable(seq.toString, (Stream.from(1) zip
+    seq).iterator, monitor)
+  def enumerated[V](seq : Iterator[V], monitor : ProgressMonitor) = new streams.SeqStreamable(seq.toString, Stream.from(1).iterator
+    zip seq, monitor)
 }

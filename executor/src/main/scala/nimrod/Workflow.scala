@@ -3,7 +3,7 @@ package nimrod
 /**
  * Represents the workflow of the script, an implicit instance is available throughout the script
  */
-class Workflow(val name : String, val key : String) extends TaskMessenger {
+class Workflow(val name : String, val key : String) extends Messenger {
   private var tasks : List[Task] = Nil
 
   /** Add a task to the workflow */
@@ -69,6 +69,13 @@ class Workflow(val name : String, val key : String) extends TaskMessenger {
     def print(text : String) = messenger.map(_.print(text))
     def println(text : String) = messenger.map(_.println(text))
   }
+  def startTask(task : Task, step : Step) = messenger.map(_.startTask(task, step))
+  def endTask(task : Task, step : Step) = messenger.map(_.endTask(task, step))
+  def failTask(task : Task, errorCode : Int, step : Step) = messenger.map(_.failTask(task, errorCode, step))
+  def complete = messenger.map(_.complete)
+  def monitorReset(n : Int) = messenger.map(_.monitorReset(n))
+  def pip = messenger.map(_.pip)
+
 
   /** List all tasks in the workflow (send the result back to the messenger */
   def list(msg : Messenger = DefaultMessenger) {

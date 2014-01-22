@@ -22,7 +22,6 @@ class ARPAWriter(val args : Seq[String]) extends Context {
     })).toMap.mapValues {
       case Seq(v) => v
     }
-    println(x.toString)
     x
   }
     
@@ -40,7 +39,7 @@ class ARPAWriter(val args : Seq[String]) extends Context {
     task("Start %s-grams" format(i)) {
       out.println("\\%d-grams:" format (i))
     }
-    Streamable.fromFile(probs).filter(
+    Streamable.fromFile(probs, monitor=monitor).filter(
       (k, v) => {
         k.split(" ").size == i
       }

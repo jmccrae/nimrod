@@ -33,5 +33,9 @@ case class StringMessage(val key : String, text : String, nl : Boolean = false, 
 case class Poll(val key : String) extends KeyedMessage
 /** Start a server/client communication */
 case class Start(val key : String) extends KeyedMessage
+/** Tell the monitor to start a new counter with n pips */
+case class MonitorReset(val key : String, pips : Int) extends KeyedMessage
+/** Add a pip to the monitor */
+case class Pip(val key : String) extends KeyedMessage
 /** Poison pill to kill a server */
 object Die extends Message

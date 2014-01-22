@@ -17,7 +17,7 @@ import scala.util.{Success, Failure}
  * @param combiner An optional function to applied to map collisions
  * @param ordering The ordering of the keys
  */
-class MapStreamable[K, V](val name : String, writeInterval : Int = 1000000, combiner : Option[(V, V) => V] = None)(implicit ordering : Ordering[K]) extends Streamable[K, V] {
+class MapStreamable[K, V](val name : String, val monitor : ProgressMonitor = NullProgressMonitor, writeInterval : Int = 1000000, combiner : Option[(V, V) => V] = None)(implicit ordering : Ordering[K]) extends Streamable[K, V] {
   import MapStreamable._
   // See below for definition of actor
   private val actor = new PutActor(writeInterval, ordering, combiner) 
@@ -54,10 +54,13 @@ class MapStreamable[K, V](val name : String, writeInterval : Int = 1000000, comb
    */
   private def withThreadPool(function : (K, Seq[V]) => Unit) {
     val tp = Executors.newCachedThreadPool()
-    for((k, vs) <- iterator) {
+    val i = iterator
+    monitor.reset(0)
+    for((k, vs) <- i) {
       tp.execute(new Runnable {
         def run {
           function(k, vs)
+          monitor.pip
         }
       })
     }
@@ -65,7 +68,7 @@ class MapStreamable[K, V](val name : String, writeInterval : Int = 1000000, comb
     tp.awaitTermination(timeoutSeconds, TimeUnit.SECONDS)
   }
 
-  def map[K2, V2](by : (K, V) => Seq[(K2, V2)])(implicit ordering2 : Ordering[K2]) = new MapStreamable[K2, V2]("Map("+name+")",writeInterval)(ordering2) {
+  def map[K2, V2](by : (K, V) => Seq[(K2, V2)])(implicit ordering2 : Ordering[K2]) = new MapStreamable[K2, V2]("Map("+name+")",monitor,writeInterval)(ordering2) {
     override def iterator = {
       MapStreamable.this.withThreadPool { 
         (k,vs) => {
@@ -80,7 +83,8 @@ class MapStreamable[K, V](val name : String, writeInterval : Int = 1000000, comb
     }
   }
 
-  def reduce[K2, V2](by : (K, Seq[V]) => Seq[(K2, V2)])(implicit ordering2 : Ordering[K2]) = new MapStreamable[K2, V2]("Reduce("+name+")",writeInterval)(ordering2) {
+  def reduce[K2, V2](by : (K, Seq[V]) => Seq[(K2, V2)])(implicit ordering2 : Ordering[K2]) = new MapStreamable[K2,
+  V2]("Reduce("+name+")",monitor,writeInterval)(ordering2) {
     override def iterator = {
       MapStreamable.this.withThreadPool {
         (k,vs) => {
@@ -94,7 +98,7 @@ class MapStreamable[K, V](val name : String, writeInterval : Int = 1000000, comb
   }
 
   def mapCombine[K2, V2](by : (K, V) => Seq[(K2, V2)])(comb : (V2, V2) => V2)(implicit ordering2 : Ordering[K2]) = new MapStreamable[K2,
-  V2]("MapCombine("+name+")",writeInterval, Some(comb))(ordering2) {
+  V2]("MapCombine("+name+")",monitor,writeInterval, Some(comb))(ordering2) {
     override def iterator = {
       MapStreamable.this.withThreadPool {
         (k,vs) => {
