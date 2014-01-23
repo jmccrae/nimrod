@@ -5,7 +5,8 @@ import nimrod._
 /**
  * Note: Unchecked assumption that the sequence is sorted by key
  */
-class SeqStreamable[K, V](val name : String, seq : Iterator[(K, V)], monitor : ProgressMonitor = NullProgressMonitor)(implicit ordering : Ordering[K]) extends Streamable[K, V] {
+class SeqStreamable[K, V](val name : String, _seq : => Iterator[(K, V)], monitor : ProgressMonitor = NullProgressMonitor)(implicit ordering : Ordering[K]) extends Streamable[K, V] {
+  private lazy val seq = _seq
   def map[K2, V2](by : (K, V) => Seq[(K2, V2)])(implicit ordering2 : Ordering[K2]) = new MapStreamable[K2, V2]("Map("+name+")", monitor)(ordering2) {
     override def iterator = {
       monitor.reset(0)
@@ -64,9 +65,22 @@ class SeqStreamable[K, V](val name : String, seq : Iterator[(K, V)], monitor : P
 
     def hasNext = peekIterator.hasNext
   }
+
+  def save()(implicit workflow : Workflow) = {
+    val ss = new SavedStreamable[K, V] {
+      def apply() = new SeqStreamable(name, _seq, monitor)(ordering)
+    }
+    workflow.register(new Task {
+      override def exec = { iterator ; 0 }
+      override def toString = "Save " + name
+      override def messenger = workflow
+    })
+    ss
+  }
 }
 
-class IterStreamable[K, V](val name : String, iter : Iterator[(K, Seq[V])], monitor : ProgressMonitor = NullProgressMonitor)(implicit ordering : Ordering[K]) extends Streamable[K, V] { 
+class IterStreamable[K, V](val name : String, _iter : Iterator[(K, Seq[V])], monitor : ProgressMonitor = NullProgressMonitor)(implicit ordering : Ordering[K]) extends Streamable[K, V] { 
+  private lazy val iter = _iter
   def map[K2, V2](by : (K, V) => Seq[(K2, V2)])(implicit ordering2 : Ordering[K2]) = new MapStreamable[K2, V2]("Map("+name+")", monitor)(ordering2) {
     override def iterator = {
       monitor.reset(0)
@@ -113,4 +127,16 @@ class IterStreamable[K, V](val name : String, iter : Iterator[(K, Seq[V])], moni
   }
 
   def iterator = iter
+
+  def save()(implicit workflow : Workflow) = {
+    val ss = new SavedStreamable[K, V] {
+      def apply() = new IterStreamable(name, _iter, monitor)(ordering)
+    }
+    workflow.register(new Task {
+      override def exec = { iterator ; 0 }
+      override def toString = "Save " + name
+      override def messenger = workflow
+    })
+    ss
+  }
 }

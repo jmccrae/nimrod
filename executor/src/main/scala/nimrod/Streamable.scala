@@ -24,6 +24,10 @@ trait Streamable[K, V] {
    * An identifier to the user of what this task does
    */
   def name : String
+  /**
+   * Save the current state to allow this to be played
+   */
+  def save()(implicit workflow : Workflow) : SavedStreamable[K, V]
 
 
   /**
@@ -163,6 +167,10 @@ object Streamable {
    */
   def enumerated[V](seq : Iterable[V], monitor : ProgressMonitor = NullProgressMonitor) = new streams.SeqStreamable(seq.toString, (Stream.from(1) zip
     seq).iterator, monitor)
-  def enumerated[V](seq : Iterator[V], monitor : ProgressMonitor) = new streams.SeqStreamable(seq.toString, Stream.from(1).iterator
+  def enumerated[V](seq : => Iterator[V], monitor : ProgressMonitor) = new streams.SeqStreamable(seq.toString, Stream.from(1).iterator
     zip seq, monitor)
+}
+
+trait SavedStreamable[K, V] {
+  def apply() : Streamable[K, V]
 }

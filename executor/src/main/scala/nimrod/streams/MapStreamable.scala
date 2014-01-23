@@ -112,6 +112,29 @@ class MapStreamable[K, V](val name : String, val monitor : ProgressMonitor = Nul
       _iterator
     }
   }
+  
+  def save()(implicit workflow : Workflow) = {
+    val ss = new SavedStreamable[K, V] {
+      def apply() = {
+        val ms = new MapStreamable[K, V](name, monitor, writeInterval, combiner)(ordering)
+        ms.become(MapStreamable.this)
+        ms
+      }
+    }
+    workflow.register(new Task {
+      override def exec = {
+        iterator
+        0
+      }
+      override def toString = "Save " + name
+      override def messenger = workflow
+    })
+    ss
+  }
+
+  private def become(that : MapStreamable[K, V]) {
+    actor.become(that.actor)
+  }
 }
 
 object MapStreamable {
@@ -193,6 +216,12 @@ object MapStreamable {
     } else {
       theMap.size
     }
+
+    def become(actor : PutActor[K,V]) = {
+      theMap = actor.theMap.clone().asInstanceOf[TreeMap[K, List[V]]]
+      received = actor.received
+      syncActor.become(actor.syncActor)
+    }
     
     /**
      * The action to insert a single element in the map
@@ -238,6 +267,11 @@ object MapStreamable {
    */
   class SyncActor extends Actor {
     private val files = ListBuffer[File]()
+
+    def become(actor : SyncActor) = {
+      files.clear()
+      files.addAll(actor.files)
+    }
 
     /**
      * Syncs a single map to disk
