@@ -122,6 +122,35 @@ class MapStreamableTest extends FlatSpec with Matchers {
     assert(!iterator.hasNext)
 
   }
+
+  "map streamble" should "save" in {
+    val streamable = new MapStreamable[String, String]("test")
+
+    streamable.put("a","b")
+    streamable.put("e","f")
+    streamable.put("c","d")
+    streamable.put("a","c")
+
+    val saved = streamable.save()(new Workflow("test","test"))
+
+    val stream1 = saved()
+
+    val iterator = stream1.iterator
+    assert(iterator.next == ("a",List("b","c")))
+    assert(iterator.next == ("c",List("d")))
+    assert(iterator.next == ("e",List("f")))
+    assert(!iterator.hasNext)
+
+    val stream2 = saved()
+
+    val iterator2 = stream2.iterator
+    assert(iterator2.next == ("a",List("b","c")))
+    assert(iterator2.next == ("c",List("d")))
+    assert(iterator2.next == ("e",List("f")))
+    assert(!iterator2.hasNext)
+
+
+  }
 }
     
 

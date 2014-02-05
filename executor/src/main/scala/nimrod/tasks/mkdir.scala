@@ -3,7 +3,7 @@ package nimrod.tasks
 import nimrod._
 
 class mkdir(path : String, subDirs : Boolean, protected val messenger : TaskMessenger) extends Task {
-  override def exec = {
+  def run = {
     if(subDirs) {
       new java.io.File(path).mkdirs
     } else {

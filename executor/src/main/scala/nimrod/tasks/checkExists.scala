@@ -4,7 +4,7 @@ import nimrod._
 import java.io.File
 
 class checkExists(file : File, val messenger : TaskMessenger) extends Task {
-  override def exec = 0
+  def run = 0
  
   requires(file)
   

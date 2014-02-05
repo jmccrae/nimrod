@@ -33,46 +33,10 @@ trait Streamable[K, V] {
   /**
    * Cogroup this streamable with another streamable
    */
-  def cogroup[W](streamable : Streamable[K, W], monitor : ProgressMonitor = NullProgressMonitor)(implicit ordering : Ordering[K]) : Streamable[K, (Seq[V], Seq[W])] = new
-  streams.SeqStreamable("CoGroup(" + this.name + "," + streamable.name + ")", new Iterator[(K, (Seq[V], Seq[W]))] {
-    lazy val iter1 = new streams.PeekableIterator(iterator)
-    lazy val iter2 = new streams.PeekableIterator(streamable.iterator)
+  def cogroup[W](streamable : Streamable[K, W], monitor : ProgressMonitor = NullProgressMonitor)(implicit ordering : Ordering[K]) = new
+  CogroupStreamable(this, streamable, monitor, ordering)
 
-    def hasNext = iter1.hasNext || iter2.hasNext
-
-    def next : (K, (Seq[V], Seq[W])) = iter1.peek match {
-      case Some((k1, vs1)) => iter2.peek match {
-        case Some((k2, vs2)) => {
-          val o = ordering.compare(k1,k2)
-            if(o < 0) {
-              iter1.next
-              return (k1, (vs1, Nil))
-            } else if(o > 0) {
-              iter2.next
-              return (k2, (Nil, vs2))
-            } else {
-              iter1.next
-              iter2.next
-              return (k1, (vs1, vs2))
-            }
-          }
-          case None => {
-            iter1.next
-            return (k1, (vs1, Nil))
-          }
-        }
-        case None => {
-          if(iter2.hasNext) {
-            val (k2, vs2) = iter2.next
-            return (k2, (Nil, vs2))
-          } else {
-            throw new NoSuchElementException()
-          }
-        }
-    }
-  }, monitor)
-
-  /**
+    /**
    * Translate the values only of a streamable (single threaded operation)
    */
   def translate[W](by : V => W, monitor : ProgressMonitor = NullProgressMonitor)(implicit ordering : Ordering[K]) : Streamable[K, W] = new streams.IterStreamable[K,W]("Translate(" + name +
@@ -88,10 +52,10 @@ trait Streamable[K, V] {
    * Dump a map into a file
    * @param file The file to write to
    * @param separator A separator between the string representations of the objects
-   * @returns A new task in the current workflow
+   * @return A new task in the current workflow
    */
   def >(file : FileArtifact, separator : String = "\t")(implicit workflow : Workflow) : Task = workflow.register(new Task {
-    override def exec = {
+    def run = {
       val out = file.asStream
       for((k, v) <- iterator) {
         out.println(k.toString + separator + v.mkString(separator))
@@ -100,6 +64,10 @@ trait Streamable[K, V] {
     }
     override def toString = name + " > " + file.pathString
     override def messenger = workflow
+    Streamable.this match {
+      case tr : TaskResource => taskResources ::= tr
+      case _ => 
+    }
   })
   /** 
    * Simplified map where the mapper only returns one element
@@ -126,7 +94,7 @@ trait Streamable[K, V] {
    * Apply an operation to each element of this map in serial
    */
   def foreach(by : (K, V) => Unit)(implicit workflow : Workflow) : Task = workflow.register(new Task {
-    override def exec = {
+    def run = {
       for((k, vs) <- iterator) {
         for(v <- vs) {
           by(k, v)
@@ -136,11 +104,45 @@ trait Streamable[K, V] {
     }
     override def toString = "Application on " + name
     override def messenger = workflow
+    Streamable.this match {
+      case tr : TaskResource => taskResources ::= tr
+      case _ => 
+    }
   })
   /**
    * Convert this to an in-memory(!) map
    */
-  def toMap = iterator.toMap
+  def toMap()(implicit workflow : Workflow) : Result[Map[K, Seq[V]]] = {
+    val r = new Result[Map[K, Seq[V]]]()
+    workflow.register(new Task {
+      def run = { r := iterator.toMap ; 0 }
+      override def toString = "Loading result in memory of " + name
+      override def messenger = workflow
+      Streamable.this match {
+        case tr : TaskResource => taskResources ::= tr
+        case _ => 
+      }
+    })
+    r
+  }
+
+  /**
+   * Convert this to an in-memory(!) map using a function on the values
+   */
+  def mapToMap[W](by : Seq[V] => W)(implicit workflow : Workflow) : Result[Map[K, W]] = {
+    val r = new Result[Map[K, W]]()
+    workflow.register(new Task {
+      def run = { r := iterator.map(_ match { case (k, vs) => (k, by(vs)) }).toMap ; 0 }
+      override def toString = "Loading result in memory of " + name
+      override def messenger = workflow
+      Streamable.this match {
+        case tr : TaskResource => taskResources ::= tr
+        case _ => 
+      }
+    })
+    r
+  }
+
 }
 
 object Streamable {
@@ -174,3 +176,60 @@ object Streamable {
 trait SavedStreamable[K, V] {
   def apply() : Streamable[K, V]
 }
+
+/**
+ * Use Streamable.cogroup
+ */
+class CogroupStreamable[K, V, W](left : Streamable[K, V], right : Streamable[K, W], val monitor : ProgressMonitor, ordering :
+  Ordering[K]) extends streams.AbstractSeqStreamable[K, (Seq[V], Seq[W])] with TaskResource {
+    val name = "CoGroup(" + left.name + "," + right.name + ")"
+    protected def _seq = new Iterator[(K, (Seq[V], Seq[W]))] {
+    lazy val iter1 = new streams.PeekableIterator(left.iterator)
+    lazy val iter2 = new streams.PeekableIterator(right.iterator)
+
+    def hasNext = iter1.hasNext || iter2.hasNext
+
+    def next : (K, (Seq[V], Seq[W])) = iter1.peek match {
+      case Some((k1, vs1)) => iter2.peek match {
+        case Some((k2, vs2)) => {
+          val o = ordering.compare(k1,k2)
+            if(o < 0) {
+              iter1.next
+              return (k1, (vs1, Nil))
+            } else if(o > 0) {
+              iter2.next
+              return (k2, (Nil, vs2))
+            } else {
+              iter1.next
+              iter2.next
+              return (k1, (vs1, vs2))
+            }
+          }
+          case None => {
+            iter1.next
+            return (k1, (vs1, Nil))
+          }
+        }
+        case None => {
+          if(iter2.hasNext) {
+            val (k2, vs2) = iter2.next
+            return (k2, (Nil, vs2))
+          } else {
+            throw new NoSuchElementException()
+          }
+        }
+    }
+  }
+  def taskComplete = {
+    left match {
+      case tr : TaskResource => tr.taskComplete
+      case _ => {}
+    }
+    right match {
+      case tr : TaskResource => tr.taskComplete
+      case _ => {}
+    }
+  }
+}
+
+

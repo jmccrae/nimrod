@@ -9,11 +9,26 @@ import java.io.File
 trait Task extends TaskMessenger {
   var requirements : List[Artifact] = Nil
   var results : List[Artifact] = Nil
+  /** Add objects to this list to trigger clean up when 
+   * all tasks in the current workflow have
+   * been completed */
+  var taskResources : List[TaskResource] = Nil
   /**
    * Execute a single task
-   * @return 0 for success, non-zero value for failer
+   * @return 0 for success, non-zero value for fail
    */
-  def exec : Int = 0
+  final def exec : Int = run
+
+  /** Clean up all resources at the end of a workflow */
+  def cleanUp = {
+    for(tr <- taskResources) {
+      tr.taskComplete
+    }
+  }
+
+  /** Implement to define what exec does */
+  protected def run : Int
+
   /** Indicate this task requires the given artifact */
   protected def requires(artifact : Artifact) {
     requirements ::= artifact
@@ -54,7 +69,7 @@ trait Task extends TaskMessenger {
 object task {
   /** Create a task with a given name and action in the workflow */
   def apply(name : String)(action : => Unit)(implicit workflow : Workflow) = workflow.register(new Task {
-    override def exec = { action ; 0 }
+    def run = { action ; 0 }
     override def toString = name
     protected val messenger = workflow
   })
@@ -67,7 +82,7 @@ object result {
   def apply[T](name : String)(action : => T)(implicit workflow : Workflow) : Result[T] = {
     val result = new Result[T]()
     workflow.register(new Task {
-      override def exec = { result.set(action) ; 0 }
+      def run = { result.set(action) ; 0 }
       override def toString = name
       protected val messenger = workflow
     })
@@ -75,13 +90,25 @@ object result {
   }
 }
 
+/**
+ * Result is a task with a result, which is used later in the program
+ */
 class Result[T] {
   private var value : Option[T] = None
+  /** Get the result
+   * @throw NoSuchElementException If the task is not yet complete */
   def apply() = value.get
+  /** Complete the task */
   def set(t : T) {
+    value = Some(t)
+  }
+  /** Complete the task. Same as set */
+  def :=(t : T) {
     value = Some(t)
   }
 }
 
-
+trait TaskResource {
+  def taskComplete : Unit
+}
   

@@ -1,3 +1,5 @@
+package nimrod.tasks
+
 import nimrod._
 
 import java.io.File

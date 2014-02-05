@@ -4,7 +4,7 @@ import nimrod._
 import java.io.File
 
 class output(fileName : String, protected val messenger : TaskMessenger) extends Task {
-  override def exec = if(new File(fileName).exists) {
+  def run = if(new File(fileName).exists) {
     0
   } else {
     -1

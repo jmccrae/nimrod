@@ -11,18 +11,19 @@ class ARPAWriter(val args : Seq[String]) extends Context {
   val lmFile = opts.woFile("out", "The file to write the output probabilities")
 
   opts.verify
-
+  
+  val x = ((Streamable.fromFile(probs)).mapCombineOne({
+    (k, v) => {
+      (k.split(" ").size, 1)
+    }
+  })({
+    (x, y) => x + y
+  })).toMap()
+ 
   val totals = result("Calculate Totals") {
-    val x = ((Streamable.fromFile(probs)).mapCombineOne({
-      (k, v) => {
-        (k.split(" ").size, 1)
-      }
-    })({
-      (x, y) => x + y
-    })).toMap.mapValues {
+    x().mapValues {
       case Seq(v) => v
     }
-    x
   }
     
   val out = lmFile.asStream

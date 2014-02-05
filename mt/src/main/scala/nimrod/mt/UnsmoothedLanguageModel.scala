@@ -15,14 +15,16 @@ class UnsmoothedLanguageModel(override val args : Seq[String]) extends Context {
   val leftCounts = FileArtifact.temporary
   val probs = FileArtifact.temporary
 
+  val tokenizer = services.Services.get(classOf[Tokenizer])
+
   (corpus.lines(monitor).mapCombine {
     (no,line) => {
-      val tokens = line.split("\\s+").toSeq
-      (1 until N) flatMap {
+      val tokens = tokenizer.tokenize(line)
+      (1 to N) flatMap {
         n => {
-          ((n + 1) to math.min(n + N, tokens.size)) map {
+          (0 until tokens.size - n) map {
             m => {
-              (tokens.slice(n - 1, m - 1).mkString(" "),1)
+              (tokens.slice(m, m + n).mkString(" "),1)
             }
           }
         }
@@ -59,6 +61,6 @@ class UnsmoothedLanguageModel(override val args : Seq[String]) extends Context {
 
 object UnsmoothedLanguageModel {
   def main(args : Array[String]) {
-    NimrodEngine.local(new UnsmoothedLanguageModel(args.toSeq))
+    NimrodEngine.local(new UnsmoothedLanguageModel(Seq("/home/jmccrae/Desktop/topics","2","out")))
   }
 }

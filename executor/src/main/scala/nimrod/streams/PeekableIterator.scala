@@ -24,12 +24,12 @@ class PeekableIterator[A](base : Iterator[A]) extends Iterator[A] {
    */
   def peek : Option[A] = {
     last match {
-      case Some(_) => 
       case None => {
         if(base.hasNext) {
           last = Some(base.next)
         }
       }
+      case _ =>
     }
     last
   }

@@ -5,7 +5,10 @@ import nimrod._
 /**
  * Note: Unchecked assumption that the sequence is sorted by key
  */
-class SeqStreamable[K, V](val name : String, _seq : => Iterator[(K, V)], monitor : ProgressMonitor = NullProgressMonitor)(implicit ordering : Ordering[K]) extends Streamable[K, V] {
+trait AbstractSeqStreamable[K, V] extends Streamable[K, V] {
+  def name : String
+  protected def _seq : Iterator[(K,V)]
+  def monitor : ProgressMonitor
   private lazy val seq = _seq
   def map[K2, V2](by : (K, V) => Seq[(K2, V2)])(implicit ordering2 : Ordering[K2]) = new MapStreamable[K2, V2]("Map("+name+")", monitor)(ordering2) {
     override def iterator = {
@@ -38,7 +41,7 @@ class SeqStreamable[K, V](val name : String, _seq : => Iterator[(K, V)], monitor
   V2]("Reduce("+name+")",monitor)(ordering2) {
     override def iterator = {
       monitor.reset(0)
-      for((k, vs) <- SeqStreamable.this.iterator) {
+      for((k, vs) <- AbstractSeqStreamable.this.iterator) {
         for((k2, v2) <- by(k, vs)) {
           put(k2, v2)
           monitor.pip
@@ -49,7 +52,7 @@ class SeqStreamable[K, V](val name : String, _seq : => Iterator[(K, V)], monitor
   }
 
   def iterator = new Iterator[(K, Seq[V])] {
-    val peekIterator = new PeekableIterator(SeqStreamable.this.seq)
+    val peekIterator = new PeekableIterator(AbstractSeqStreamable.this.seq)
 
     def next = peekIterator.peek match {
       case Some((k,v)) => {
@@ -68,10 +71,10 @@ class SeqStreamable[K, V](val name : String, _seq : => Iterator[(K, V)], monitor
 
   def save()(implicit workflow : Workflow) = {
     val ss = new SavedStreamable[K, V] {
-      def apply() = new SeqStreamable(name, _seq, monitor)(ordering)
+      def apply() = new SeqStreamable(name, _seq, monitor)
     }
     workflow.register(new Task {
-      override def exec = { iterator ; 0 }
+      def run = { iterator ; 0 }
       override def toString = "Save " + name
       override def messenger = workflow
     })
@@ -79,7 +82,12 @@ class SeqStreamable[K, V](val name : String, _seq : => Iterator[(K, V)], monitor
   }
 }
 
-class IterStreamable[K, V](val name : String, _iter : Iterator[(K, Seq[V])], monitor : ProgressMonitor = NullProgressMonitor)(implicit ordering : Ordering[K]) extends Streamable[K, V] { 
+class SeqStreamable[K, V](val name : String, __seq : => Iterator[(K,V)], val monitor : ProgressMonitor = NullProgressMonitor) extends
+AbstractSeqStreamable[K, V] {
+  protected def _seq = __seq
+}
+
+class IterStreamable[K, V](val name : String, _iter : => Iterator[(K, Seq[V])], monitor : ProgressMonitor = NullProgressMonitor)(implicit ordering : Ordering[K]) extends Streamable[K, V] { 
   private lazy val iter = _iter
   def map[K2, V2](by : (K, V) => Seq[(K2, V2)])(implicit ordering2 : Ordering[K2]) = new MapStreamable[K2, V2]("Map("+name+")", monitor)(ordering2) {
     override def iterator = {
@@ -133,7 +141,7 @@ class IterStreamable[K, V](val name : String, _iter : Iterator[(K, Seq[V])], mon
       def apply() = new IterStreamable(name, _iter, monitor)(ordering)
     }
     workflow.register(new Task {
-      override def exec = { iterator ; 0 }
+      def run = { iterator ; 0 }
       override def toString = "Save " + name
       override def messenger = workflow
     })

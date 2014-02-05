@@ -24,6 +24,7 @@ trait Context extends TaskMessenger {
   val opts = new Opts(args)
   val monitor = new MessengerProgressMonitor(workflow)
   override def toString = name
+  def cleanUp = workflow.cleanUp
 }
 
 object Context {

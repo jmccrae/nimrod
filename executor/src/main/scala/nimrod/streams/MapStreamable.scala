@@ -17,7 +17,8 @@ import scala.util.{Success, Failure}
  * @param combiner An optional function to applied to map collisions
  * @param ordering The ordering of the keys
  */
-class MapStreamable[K, V](val name : String, val monitor : ProgressMonitor = NullProgressMonitor, writeInterval : Int = 1000000, combiner : Option[(V, V) => V] = None)(implicit ordering : Ordering[K]) extends Streamable[K, V] {
+class MapStreamable[K, V](val name : String, val monitor : ProgressMonitor = NullProgressMonitor, writeInterval : Int = 1000000, combiner :
+  Option[(V, V) => V] = None)(implicit ordering : Ordering[K]) extends Streamable[K, V] with TaskResource {
   import MapStreamable._
   // See below for definition of actor
   private val actor = new PutActor(writeInterval, ordering, combiner) 
@@ -39,13 +40,9 @@ class MapStreamable[K, V](val name : String, val monitor : ProgressMonitor = Nul
    */
   protected def _iterator = {
     // We make the actor promise to return the result and block until it does
-    try {
-      val p = Promise[Iterator[(K, Seq[V])]]()
-      actor ! new actor.Values(p)
-      Await.result(p.future, Duration.Inf).asInstanceOf[Iterator[(K, Seq[V])]]
-    } finally {
-      actor.stop
-    }
+    val p = Promise[Iterator[(K, Seq[V])]]()
+    actor ! new actor.Values(p)
+    Await.result(p.future, Duration.Inf).asInstanceOf[Iterator[(K, Seq[V])]]
   }
 
   /**
@@ -81,6 +78,10 @@ class MapStreamable[K, V](val name : String, val monitor : ProgressMonitor = Nul
       }
       _iterator
     }
+    override def stop = {
+      MapStreamable.this.stop
+      super.stop
+    }
   }
 
   def reduce[K2, V2](by : (K, Seq[V]) => Seq[(K2, V2)])(implicit ordering2 : Ordering[K2]) = new MapStreamable[K2,
@@ -95,7 +96,11 @@ class MapStreamable[K, V](val name : String, val monitor : ProgressMonitor = Nul
       }
       _iterator
     }
-  }
+    override def stop = {
+      MapStreamable.this.stop
+      super.stop
+    }
+   }
 
   def mapCombine[K2, V2](by : (K, V) => Seq[(K2, V2)])(comb : (V2, V2) => V2)(implicit ordering2 : Ordering[K2]) = new MapStreamable[K2,
   V2]("MapCombine("+name+")",monitor,writeInterval, Some(comb))(ordering2) {
@@ -111,29 +116,46 @@ class MapStreamable[K, V](val name : String, val monitor : ProgressMonitor = Nul
       }
       _iterator
     }
-  }
+    override def stop = {
+      MapStreamable.this.stop
+      super.stop
+    }
+   }
   
   def save()(implicit workflow : Workflow) = {
     val ss = new SavedStreamable[K, V] {
       def apply() = {
-        val ms = new MapStreamable[K, V](name, monitor, writeInterval, combiner)(ordering)
-        ms.become(MapStreamable.this)
+        val outerThis = MapStreamable.this
+        val ms = new MapStreamable[K, V](name, monitor, writeInterval, combiner)(ordering) {
+          override def iterator = {
+            become(outerThis)
+            _iterator
+          }
+        }
         ms
       }
     }
     workflow.register(new Task {
-      override def exec = {
+      def run = {
         iterator
         0
       }
       override def toString = "Save " + name
       override def messenger = workflow
+      taskResources ::= MapStreamable.this
     })
     ss
   }
 
   private def become(that : MapStreamable[K, V]) {
-    actor.become(that.actor)
+    val p = Promise[AnyRef]()
+    that.actor ! new that.actor.Copy(actor, p)
+    Await.result(p.future, Duration.Inf)
+  }
+
+  def taskComplete { stop }
+  def stop { 
+    actor.stop 
   }
 }
 
@@ -149,7 +171,15 @@ object MapStreamable {
 
     def next = {
       read += 1
-      (in.readObject().asInstanceOf[K],in.readObject().asInstanceOf[V])
+      try {
+        (in.readObject().asInstanceOf[K],in.readObject().asInstanceOf[V])
+      } catch {
+        case x : Exception => {
+          System.err.println("File: " + file + " " + file.exists() + " " + file.length())
+          System.err.println("Read: " + read + " Total: " + _size)
+          throw x
+        }
+      }
     }
     def hasNext = read < _size
   }
@@ -247,12 +277,28 @@ object MapStreamable {
     }
 
     /**
+     * The action to copy this value to another actor
+     */
+    class Copy(actor : PutActor[K,V], p : Promise[AnyRef]) extends Runnable {
+      def run {
+        val p2 = Promise[Iterator[(K, Seq[V])]]()
+        val future = syncActor ! new syncActor.Sync[K, V](theMap, elementsInTheMap, Some(p2), ordering)
+        theMap = new TreeMap[K, List[V]](ordering)
+        received = 0
+        Await.result(p2.future, Duration.Inf)
+        actor.become(PutActor.this)
+        p.trySuccess(None)
+      }
+    }
+
+    /**
      * The action to get the iterator over values, the result will be returned in the promise
      */
     class Values(p : Promise[Iterator[(K, Seq[V])]]) extends Runnable {
       def run {
         val future = syncActor ! new syncActor.Sync[K, V](theMap, elementsInTheMap, Some(p), ordering)
         theMap = new TreeMap[K, List[V]](ordering)
+        received = 0
       }
     }
 
@@ -279,7 +325,9 @@ object MapStreamable {
     class Sync[K, V](map : TreeMap[K, List[V]], size : Int, p : Option[Promise[Iterator[(K, Seq[V])]]], ordering : Ordering[K]) extends
     Runnable {
       def run {
-        writeMap(map, size)
+        if(map.size > 0) {
+          writeMap(map, size)
+        }
         p.map(_.trySuccess(new MapIterator(files.toList, ordering)))
       }
     }

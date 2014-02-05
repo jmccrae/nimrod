@@ -26,7 +26,7 @@ class Do(args : List[String], wf : TaskMessenger) extends Task {
 
   protected def messenger = wf
 
-  override def exec = {
+  def run = {
     val pb = new ProcessBuilder(args:_*)
     for((key,value) <- envs) {
       pb.environment().put(key,value)

@@ -6,7 +6,7 @@ import java.io.PrintWriter
 import java.util.Scanner
 
 class split(file : File, lineCount : Int, namer : Int => String, protected val messenger : TaskMessenger) extends Task {
-  override def exec = {
+  def run = {
     val in = new Scanner(file)
     var part = 1
     var linesRead = 0

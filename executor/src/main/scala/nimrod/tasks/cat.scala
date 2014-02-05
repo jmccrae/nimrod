@@ -9,7 +9,7 @@ import java.util.zip.GZIPInputStream
 
 class cat(files : => Seq[File], val messenger : TaskMessenger) extends Task {
   private var outFile : Option[File] = None
-  override def exec = {
+  def run = {
     val out = outFile match {
       case Some(file) => new PrintStream(file)
       case None => System.out

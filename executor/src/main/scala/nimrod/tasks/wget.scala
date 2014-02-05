@@ -23,7 +23,7 @@ class wget(url : URL, protected val messenger : TaskMessenger) extends Task {
     }
   }
 
-  override def exec : Int = {
+  def run : Int = {
     try {
       val conn = url.openConnection()
       val size = fileSize(conn)

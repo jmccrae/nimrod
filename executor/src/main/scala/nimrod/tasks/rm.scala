@@ -5,7 +5,7 @@ import java.io.File
 class rm(file : File, protected val messenger : TaskMessenger) extends Task {
   private var e = false
   private var recursive = false
-  override def exec = if(recursive && file.isDirectory()) {
+  def run = if(recursive && file.isDirectory()) {
     if(delTree(file)) {
       0
     } else {

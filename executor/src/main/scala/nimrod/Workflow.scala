@@ -16,10 +16,11 @@ class Workflow(val name : String, val key : String) extends Messenger {
   /** Add a set of tasks as a subtask to the workflow */
   def register(context : Context) : Task = {
     val task = new Task {
-      override def exec = { context.workflow.start(1, Workflow.this.messenger.getOrElse(throw new RuntimeException("Messenger not set when calling sub-context"))) ; 0 }
+      def run = { context.workflow.start(1, Workflow.this.messenger.getOrElse(throw new RuntimeException("Messenger not set when calling sub-context"))) ; 0 }
       def name = "Subtask"
       protected def messenger = Workflow.this.messenger.getOrElse(throw new RuntimeException("Messenger not set when calling sub-context"))
       override def toString = context.toString
+      override def cleanUp = context.cleanUp
     }
     val total = context.workflow.currentStep.total
     context.workflow.currentStep = currentStep.push
@@ -27,6 +28,13 @@ class Workflow(val name : String, val key : String) extends Messenger {
     currentStep.incTotal()
     tasks ::= task
     task
+  }
+
+  /** Clean-up this workflow (do not call!) */
+  def cleanUp {
+    for(task <- tasks) {
+      task.cleanUp
+    }
   }
 
   /** Replace a task in the workflow */
@@ -81,9 +89,13 @@ class Workflow(val name : String, val key : String) extends Messenger {
   def list(msg : Messenger = DefaultMessenger) {
     messenger = Some(msg)
     currentStep := 1
-    for(task <- tasks.reverse) {
-      msg.println("  " + currentStep + ". " + task.toString)
-      currentStep += 1
+    try {
+      for(task <- tasks.reverse) {
+        msg.println("  " + currentStep + ". " + task.toString)
+        currentStep += 1
+      }
+    } finally {
+      cleanUp
     }
   }
 
@@ -97,29 +109,33 @@ class Workflow(val name : String, val key : String) extends Messenger {
     }
     messenger = Some(msg)
     currentStep := step
-    for(task <- tasks.reverse.drop(step-1)) {      
-      for(req <- task.requirements) {
-        if(!req.validInput) {
-          throw new WorkflowException("Requirement not satisified " + req)
+    try {
+      for(task <- tasks.reverse.drop(step-1)) {      
+        for(req <- task.requirements) {
+          if(!req.validInput) {
+            throw new WorkflowException("Requirement not satisified " + req)
+          }
         }
-      }
-      
-      msg.startTask(task, currentStep.copy)
-      val errorCode = try {
-        task.exec 
-      } catch {
-        case t : Throwable => {
-          t.printStackTrace()
-          256
+        
+        msg.startTask(task, currentStep.copy)
+        val errorCode = try {
+          task.exec 
+        } catch {
+          case t : Throwable => {
+            t.printStackTrace()
+            256
+          }
         }
-      }
-      if(errorCode != 0) {
-        msg.failTask(task, errorCode, currentStep.copy)
-        return
-      }
-      msg.endTask(task, currentStep.copy)
-      currentStep += 1
-    }    
+        if(errorCode != 0) {
+          msg.failTask(task, errorCode, currentStep.copy)
+          return
+        }
+        msg.endTask(task, currentStep.copy)
+        currentStep += 1
+      }    
+    } finally {
+      cleanUp
+    }
   }
   
   /**
@@ -142,8 +158,9 @@ class WorkflowActor(workflow : Workflow) extends WaitQueue[Message] {
       case WorkflowException(msg, _) => {
         this ! WorkflowNotStarted(workflow.key, msg)
       }
+    } finally {
+      stop
     }
-    stop
   }
   def start(step : Int) {
     try {
@@ -152,8 +169,9 @@ class WorkflowActor(workflow : Workflow) extends WaitQueue[Message] {
       case WorkflowException(msg, _) => {
         this ! WorkflowNotStarted(workflow.key, msg)
       }
+    } finally {
+      stop
     }
-    stop
   }
 }
 
