@@ -45,12 +45,12 @@ class MapStreamableTest extends FlatSpec with Matchers {
     streamable.put("c","d")
     streamable.put("a","c")
 
-    val newStreamable = streamable.reduce { (x, ys) => Seq((x + "count", ys.size)) }
+    val newStreamable = streamable.reduce { (x, ys) => Seq(ys.size) }
 
     val iterator = newStreamable.iterator
-    assert(iterator.next == ("acount",List(2)))
-    assert(iterator.next == ("ccount",List(1)))
-    assert(iterator.next == ("ecount",List(1)))
+    assert(iterator.next == ("a",List(2)))
+    assert(iterator.next == ("c",List(1)))
+    assert(iterator.next == ("e",List(1)))
     assert(!iterator.hasNext)
     
   }

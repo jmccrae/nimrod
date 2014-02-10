@@ -7,7 +7,7 @@ class UnsmoothedLanguageModel(override val args : Seq[String]) extends Context {
 
   val corpus = opts.roFile("corpus","The corpus to read from")
   val N = opts.intValue("N", "The largest n-gram to calculate")
-  val output = opts.woFile("output","The file to write the langauge model to")
+  val output = opts.woFile("output","The file to write the language model to")
 
   opts.verify
 
@@ -39,19 +39,21 @@ class UnsmoothedLanguageModel(override val args : Seq[String]) extends Context {
       val lastWord = tokens.last
       (ngramDot, (lastWord, count))
     }
-  } reduce {
+  } reduceOne {
     (ngramDot, counts) => {
       val total : Int = counts.map(_._2).reduce((x,y) => x + y)
       counts.map(c => c match {
-        case (word, x) => (ngramDot, (word, x.toDouble / total))
+        case (word, x) => (word, x.toDouble / total)
       })
     }
-  } mapOne {
-    (ngramDot, wp) => {
-      if(ngramDot == "") {
-        (wp._1, wp._2)
-      } else {
-        (ngramDot + " " + wp._1, wp._2)
+  } map {
+    (ngramDot, wps) => {
+      for(wp <- wps) yield {
+        if(ngramDot == "") {
+          (wp._1, wp._2)
+        } else {
+          (ngramDot + " " + wp._1, wp._2)
+        }
       }
     }
   }) > probs
@@ -61,6 +63,6 @@ class UnsmoothedLanguageModel(override val args : Seq[String]) extends Context {
 
 object UnsmoothedLanguageModel {
   def main(args : Array[String]) {
-    NimrodEngine.local(new UnsmoothedLanguageModel(Seq("/home/jmccrae/Desktop/topics","2","out")))
+    NimrodEngine.local(new UnsmoothedLanguageModel(args.toSeq))
   }
 }

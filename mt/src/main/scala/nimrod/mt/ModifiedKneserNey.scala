@@ -83,10 +83,9 @@ class ModifiedKneserNey(override val args : Seq[String]) extends Context {
         }
       }
     } reduce {
-      (ngram, diversity) => Seq((ngram, diversity.filter(_._2 >= n).toMap.size))
+      (ngram, diversity) => Seq(diversity.filter(_._2 >= n).toMap.size)
     }).save()
   }
-
 
   def N1r = diversityOfHistory(1, false)
   def N2r = diversityOfHistory(2, false)
@@ -113,10 +112,30 @@ class ModifiedKneserNey(override val args : Seq[String]) extends Context {
       val n3r = values.head._2.head._2.head._1.head
       val count = values.head._2.head._2.head._2.head
       val d = D()
-      (ngram, (d(1) * n1r + (d(2) - d(1)) * n2r + (d(3) - d(2)) * n3r).toDouble / count)
+      (d(1) * n1r + (d(2) - d(1)) * n2r + (d(3) - d(2)) * n3r).toDouble / count
     }
   }).save()
       
+  def N1lsum = N1l().combine({
+    (x, y) => x + y
+  }).save()
+ 
+  def alpha = (N1l() cogroup N1lsum()).reduceOne({
+    (ngram : String, values : Seq[(Seq[Int], Seq[Int])]) => values match {
+      case Seq((Seq(a), Seq(sum))) => if(a > 3) {
+        (a.toDouble - D()(3)) / sum
+      } else {
+        (a.toDouble - D()(a)) / sum
+      }
+    }
+  }).save() 
+
+  def probs = (gamma() cogroup alpha()).reduceOne {
+    (ngram : String, values : Seq[(Seq[Double], Seq[Double])]) => values match {
+      case Seq((Seq(g),Seq(a))) => Seq(g, a)
+      case Seq((Seq(g),Nil)) => Seq(g)
+    }
+  } 
 
 }
 

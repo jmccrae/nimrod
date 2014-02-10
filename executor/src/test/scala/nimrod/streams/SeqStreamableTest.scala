@@ -35,12 +35,12 @@ class SeqStreamableTest extends FlatSpec with Matchers {
   "seq streamable" should "reduce" in {
     val streamable = new SeqStreamable[String, String]("test",List(("a","b"),("e","f"),("c","d"),("a","c")).sorted.iterator)
 
-    val newStreamable = streamable.reduce { (x, ys) => Seq((x + "count", ys.size)) }
+    val newStreamable = streamable.reduce { (x, ys) => Seq(ys.size) }
 
     val iterator = newStreamable.iterator
-    assert(iterator.next == ("acount",List(2)))
-    assert(iterator.next == ("ccount",List(1)))
-    assert(iterator.next == ("ecount",List(1)))
+    assert(iterator.next == ("a",List(2)))
+    assert(iterator.next == ("c",List(1)))
+    assert(iterator.next == ("e",List(1)))
     assert(!iterator.hasNext)
     
   }
@@ -84,12 +84,12 @@ class SeqStreamableTest extends FlatSpec with Matchers {
   "iter streamable" should "reduce" in {
     val streamable = new IterStreamable[String, String]("test",List(("a",List("b","c")),("e",List("f")),("c",List("d"))).sorted.iterator)
 
-    val newStreamable = streamable.reduce { (x, ys) => Seq((x + "count", ys.size)) }
+    val newStreamable = streamable.reduce { (x, ys) => Seq(ys.size) }
 
     val iterator = newStreamable.iterator
-    assert(iterator.next == ("acount",List(2)))
-    assert(iterator.next == ("ccount",List(1)))
-    assert(iterator.next == ("ecount",List(1)))
+    assert(iterator.next == ("a",List(2)))
+    assert(iterator.next == ("c",List(1)))
+    assert(iterator.next == ("e",List(1)))
     assert(!iterator.hasNext)
     
   }

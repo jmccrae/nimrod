@@ -37,13 +37,13 @@ trait AbstractSeqStreamable[K, V] extends Streamable[K, V] {
     }
   }
 
-  def reduce[K2, V2](by : (K, Seq[V]) => Seq[(K2, V2)])(implicit ordering2 : Ordering[K2]) = new MapStreamable[K2,
+  def reduce[V2](by : (K, Seq[V]) => Seq[V2])(implicit ordering2 : Ordering[K]) = new MapStreamable[K,
   V2]("Reduce("+name+")",monitor)(ordering2) {
     override def iterator = {
       monitor.reset(0)
       for((k, vs) <- AbstractSeqStreamable.this.iterator) {
-        for((k2, v2) <- by(k, vs)) {
-          put(k2, v2)
+        for(v2 <- by(k, vs)) {
+          put(k, v2)
           monitor.pip
         }
       }
@@ -120,13 +120,13 @@ class IterStreamable[K, V](val name : String, _iter : => Iterator[(K, Seq[V])], 
     }
   }
 
-  def reduce[K2, V2](by : (K, Seq[V]) => Seq[(K2, V2)])(implicit ordering2 : Ordering[K2]) = new MapStreamable[K2, V2]("Reduce("+name+")",
+  def reduce[V2](by : (K, Seq[V]) => Seq[V2])(implicit ordering2 : Ordering[K]) = new MapStreamable[K, V2]("Reduce("+name+")",
     monitor)(ordering2) {
     override def iterator = {
       monitor.reset(0)
       for((k, vs) <- iter) {
-        for((k2, v2) <- by(k, vs)) {
-          put(k2, v2)
+        for(v2 <- by(k, vs)) {
+          put(k, v2)
           monitor.pip
         }
       }

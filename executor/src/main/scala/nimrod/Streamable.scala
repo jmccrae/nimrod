@@ -15,7 +15,7 @@ trait Streamable[K, V] {
   /**
    * Reduce this map the following function
    */
-  def reduce[K2, V2](by : (K,Seq[V]) => Seq[(K2, V2)])(implicit ordering : Ordering[K2]) : Streamable[K2, V2]
+  def reduce[V2](by : (K, Seq[V]) => Seq[V2])(implicit ordering : Ordering[K]) : Streamable[K, V2]
   /**
    * Create an iterator on this data, this normally executes all maps, combines and reduces further down the chain
    */
@@ -81,11 +81,11 @@ trait Streamable[K, V] {
   /**
    * Simplified reduce where the reducer only returns one element
    */
-  def reduceOne[K2, V2](by : (K, Seq[V]) => (K2, V2))(implicit ordering : Ordering[K2]) = reduce { (k, vs) => Seq(by(k, vs)) }
+  def reduceOne[K2, V2](by : (K, Seq[V]) => V2)(implicit ordering : Ordering[K]) : Streamable[K, V2] = reduce { (k, vs) => Seq(by(k, vs)) }
   /**
    * Combine the streamble with the following function
    */
-  def combine(by : (V, V) => V)(implicit ordering : Ordering[K]) = reduce { (k, vs) => Seq((k, vs.reduce(by))) }
+  def combine(by : (V, V) => V)(implicit ordering : Ordering[K]) = reduce { (k, vs) => Seq(vs.reduce(by)) }
   /**
    * Filter this map by the given function
    */
@@ -109,6 +109,25 @@ trait Streamable[K, V] {
       case _ => 
     }
   })
+  /**
+   * Apply an operation to each key and value set of this map in serial
+   */
+  def forReduce(by : (K, Seq[V]) => Unit)(implicit workflow : Workflow) : Task = workflow.register(new Task {
+    def run = {
+      for((k, vs) <- iterator) {
+        by(k, vs)
+      }
+      0
+    }
+    override def toString = "Application on " + name
+    override def messenger = workflow
+    Streamable.this match {
+      case tr : TaskResource => taskResources ::= tr
+      case _ => 
+    }
+  })
+
+
   /**
    * Convert this to an in-memory(!) map
    */

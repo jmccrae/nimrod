@@ -4,7 +4,8 @@ import nimrod._
 import java.io._
 import java.lang.Integer
 import java.util.TreeMap
-import java.util.concurrent.{Executors, TimeUnit}
+import java.util.concurrent.{Executors, TimeUnit, ThreadFactory}
+import java.util.concurrent.atomic.AtomicInteger
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.{Promise, Await}
@@ -50,7 +51,7 @@ class MapStreamable[K, V](val name : String, val monitor : ProgressMonitor = Nul
    * and block until all maps have been completed (but not all inserts!)
    */
   private def withThreadPool(function : (K, Seq[V]) => Unit) {
-    val tp = Executors.newCachedThreadPool()
+    val tp = Executors.newCachedThreadPool(new LimitedThreadFactory())
     val i = iterator
     monitor.reset(0)
     for((k, vs) <- i) {
@@ -84,13 +85,13 @@ class MapStreamable[K, V](val name : String, val monitor : ProgressMonitor = Nul
     }
   }
 
-  def reduce[K2, V2](by : (K, Seq[V]) => Seq[(K2, V2)])(implicit ordering2 : Ordering[K2]) = new MapStreamable[K2,
+  def reduce[V2](by : (K, Seq[V]) => Seq[V2])(implicit ordering2 : Ordering[K]) = new MapStreamable[K,
   V2]("Reduce("+name+")",monitor,writeInterval)(ordering2) {
     override def iterator = {
       MapStreamable.this.withThreadPool {
         (k,vs) => {
-          for((k2, v2) <- by(k, vs)) {
-            put(k2, v2)
+          for(v2 <- by(k, vs)) {
+            put(k, v2)
           }
         }
       }
@@ -185,7 +186,7 @@ object MapStreamable {
   }
 
   // The  merging iterator. Note iterators cannot be thread-safe!
-  private class MapIterator[K, V](files : List[File], ordering : Ordering[K]) extends Iterator[(K, Seq[V])] {
+  private class MapIterator[K, V](files : List[File], ordering : Ordering[K], combiner : Option[(V, V) => V]) extends Iterator[(K, Seq[V])] {
     val readers = files map (file => new PeekableIterator[(K, V)](new SerializedMapIterator(file)))
 
     def next = {
@@ -212,7 +213,10 @@ object MapStreamable {
           }
         }
       }
-      (key,values)
+      combiner match {
+        case None => (key,values)
+        case Some(comb) => (key, Seq(values.reduce(comb)))
+      }
     }
     def hasNext = { readers.exists(_.hasNext) }
   }
@@ -259,7 +263,7 @@ object MapStreamable {
     class Put(key : K, value : V) extends Runnable {
       def run {
         if(received > writeInterval) {
-          syncActor ! new syncActor.Sync(theMap, received, None, ordering)
+          syncActor ! new syncActor.Sync(theMap, elementsInTheMap, None, ordering, combiner)
           theMap = new TreeMap[K, List[V]](ordering)
           received = 0
         } 
@@ -282,7 +286,7 @@ object MapStreamable {
     class Copy(actor : PutActor[K,V], p : Promise[AnyRef]) extends Runnable {
       def run {
         val p2 = Promise[Iterator[(K, Seq[V])]]()
-        val future = syncActor ! new syncActor.Sync[K, V](theMap, elementsInTheMap, Some(p2), ordering)
+        val future = syncActor ! new syncActor.Sync[K, V](theMap, elementsInTheMap, Some(p2), ordering, combiner)
         theMap = new TreeMap[K, List[V]](ordering)
         received = 0
         Await.result(p2.future, Duration.Inf)
@@ -296,7 +300,7 @@ object MapStreamable {
      */
     class Values(p : Promise[Iterator[(K, Seq[V])]]) extends Runnable {
       def run {
-        val future = syncActor ! new syncActor.Sync[K, V](theMap, elementsInTheMap, Some(p), ordering)
+        val future = syncActor ! new syncActor.Sync[K, V](theMap, elementsInTheMap, Some(p), ordering, combiner)
         theMap = new TreeMap[K, List[V]](ordering)
         received = 0
       }
@@ -322,13 +326,14 @@ object MapStreamable {
     /**
      * Syncs a single map to disk
      */
-    class Sync[K, V](map : TreeMap[K, List[V]], size : Int, p : Option[Promise[Iterator[(K, Seq[V])]]], ordering : Ordering[K]) extends
+    class Sync[K, V](map : TreeMap[K, List[V]], size : Int, p : Option[Promise[Iterator[(K, Seq[V])]]], ordering : Ordering[K], combiner :
+      Option[(V, V) => V]) extends
     Runnable {
       def run {
         if(map.size > 0) {
           writeMap(map, size)
         }
-        p.map(_.trySuccess(new MapIterator(files.toList, ordering)))
+        p.map(_.trySuccess(new MapIterator(files.toList, ordering, combiner)))
       }
     }
 
@@ -350,6 +355,27 @@ object MapStreamable {
       out.flush
       out.close
       files.prepend(outFile)
+    }
+  }
+
+  /**
+   * This is a thread factory that slows down if there are more than a fixed number of threads.
+   * The purpose is to stop too many slow tasks being spawned simultaneously and using up all
+   * memory
+   */
+  private class LimitedThreadFactory() extends ThreadFactory {
+    private var nCreated = new AtomicInteger()
+    private val maxThreads = System.getProperty("nimrod.maxthreads","200").toInt
+    private val base = Executors.defaultThreadFactory()
+
+    def newThread(r : Runnable) : Thread = {
+      var x = nCreated.incrementAndGet()
+      if(x > maxThreads) {
+        this.synchronized {
+          wait(100 * (x - maxThreads))
+        }
+      }
+      return base.newThread(r)
     }
   }
 }

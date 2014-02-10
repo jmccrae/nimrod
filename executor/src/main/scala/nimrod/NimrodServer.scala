@@ -26,13 +26,14 @@ object NimrodEngine {
     programSB.append("import nimrod._ ; ")
     programSB.append("import nimrod.tasks._ ; ")
     programSB.append("import java.io._ ; ")
-    programSB.append("object ThisContext extends nimrod.Context {")
+    programSB.append("object ThisContext extends nimrod.Context { ")
     programSB.append("def name = \""+name+"\";")
     programSB.append("def args = Seq(" + args.map("\""+_+"\"").mkString(",") + ");")
     programSB.append("override def key = \""+key+"\";")
     programSB.append(program + ln)
     programSB.append("};")
     programSB.append("ThisContext.workflow")
+    //System.err.println(programSB.toString)
     try {
       submitWorkflow(new Eval()(programSB.toString()).asInstanceOf[Workflow], listMode, beginStep)
     } catch {

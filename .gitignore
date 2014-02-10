@@ -26,5 +26,7 @@ tmp
 out
 result*
 tmp*
-scripts
+/scripts
+/executor/scripts
+.idea
 .history
