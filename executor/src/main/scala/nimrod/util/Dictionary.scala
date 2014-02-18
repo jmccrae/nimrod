@@ -13,9 +13,15 @@ class Dictionary[K](initialKey : Int = 1)(implicit ordering : Ordering[K]) {
     if(map containsKey k) {
       map.get(k)
     } else {
-      map.put(k, n)
-      n += 1
-      n - 1
+      this.synchronized {
+        if(!(map containsKey k)) {
+          map.put(k, n)
+          n += 1
+          n - 1
+        } else {
+          map.get(k)
+        }
+      }
     }
   }
 }

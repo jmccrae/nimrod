@@ -30,6 +30,15 @@ class MapStreamable[K, V](val name : String, val monitor : ProgressMonitor = Nul
   def put(k : K, v : V) {
     actor ! new actor.Put(k, v)
   }
+  /**
+   * Remove all elements in this map
+   */
+  def clear() {
+    val p = Promise[AnyRef]()
+    val blankActor = new PutActor(writeInterval, ordering, combiner)
+    blankActor ! new blankActor.Copy(actor, p)
+    Await.result(p.future, Duration.Inf)
+  }
 
   /**
    * Get the iterator (all pending actions will be processed first
@@ -148,7 +157,7 @@ class MapStreamable[K, V](val name : String, val monitor : ProgressMonitor = Nul
     ss
   }
 
-  private def become(that : MapStreamable[K, V]) {
+  def become(that : MapStreamable[K, V]) {
     val p = Promise[AnyRef]()
     that.actor ! new that.actor.Copy(actor, p)
     Await.result(p.future, Duration.Inf)

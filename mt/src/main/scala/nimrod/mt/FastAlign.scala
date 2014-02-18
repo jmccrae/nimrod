@@ -1,8 +1,10 @@
 package nimrod.mt
 
 import java.io.PrintWriter
+import java.util.concurrent.ConcurrentSkipListMap
 import scala.collection.mutable.ListBuffer
 import scala.math._
+import scala.collection.JavaConversions._
 import nimrod.util.Dictionary
 import nimrod.services.Services
 import it.unimi.dsi.fastutil.ints._
@@ -88,10 +90,10 @@ object FastAlign {
   }
 
   class TTable {
-    type Word2Double = Int2DoubleMap 
+    type Word2Double = ConcurrentSkipListMap[Int, Double]
     type Word2Word2Double = ListBuffer[Word2Double]
-    private var ttable : Word2Word2Double = ListBuffer[Word2Double]()
-    private var counts : Word2Word2Double = ListBuffer[Word2Double]()
+    var ttable : Word2Word2Double = ListBuffer[Word2Double]()
+    var counts : Word2Word2Double = ListBuffer[Word2Double]()
 
     private def getOrElse(map : Word2Double, key : Int) : Double = {
       if(map.containsKey(key)) { 
@@ -116,61 +118,62 @@ object FastAlign {
 
     def increment(e : Int, f : Int, x : Double = 1.0) {
       while(e >= counts.size) {
-        counts += new Int2DoubleRBTreeMap()
+        counts += new Word2Double()
       }
       val c = counts(e)
       c.put(f, getOrElse(c, f) + x)
     }
 
+    private def setProb(i : Int, j : Int, p : Double) {
+      while(ttable.size <= i) {
+        ttable += new Word2Double()
+      }
+      ttable(i).put(j, p)
+    }
+
     def normalizeVB(alpha : Double) {
-      ttable = counts
-      for(cpd <- ttable) {
-        var tot = 0.0;
-        var it = cpd.int2DoubleEntrySet().iterator      
-        while(it.hasNext) {
-          tot += it.next.getDoubleValue() + alpha
+      ttable.clear()
+      for(i <- 0 until counts.size) {
+        val cpd = counts(i)
+        var tot = 0.0
+        for((word, prob) <- cpd) {
+          tot += prob + alpha
         }
         if (tot == 0.0) {
            tot = 1.0
         }
-        it = cpd.int2DoubleEntrySet().iterator
-        while(it.hasNext) {
-          val x = it.next
-          x.setValue(math.exp(Md.digamma(x.getDoubleValue + alpha) - Md.digamma(tot)))
+        for((word, prob) <- cpd) {
+          setProb(i, word, math.exp(Md.digamma(prob + alpha) - Md.digamma(tot)))
         }
       }
-      counts = ListBuffer[Word2Double]()
+      counts.clear()
     }
 
     def normalize() {
-      ttable = counts
-      for(cpd <- ttable) {
+      ttable.clear()
+      for(i <- 0 until counts.size) {
+        val cpd = counts(i)
         var tot = 0.0
-        var it = cpd.int2DoubleEntrySet().iterator
-        while(it.hasNext) {
-          tot += it.next.getDoubleValue()
+        for((word, prob) <- cpd) {
+          tot += prob 
         }
-        if(tot == 0.0) {
-          tot = 1.0
+        if (tot == 0.0) {
+           tot = 1.0
         }
-        it = cpd.int2DoubleEntrySet().iterator
-        while(it.hasNext) {
-          val x = it.next
-          x.setValue(x.getDoubleValue() / tot)
+        for((word, prob) <- cpd) {
+          setProb(i, word, prob / tot)
         }
       }
-      counts = ListBuffer[Word2Double]()
+      counts.clear()
     }
 
     def +=(rhs : TTable) {
       if(rhs.counts.size > counts.size) {
-        counts ++= ListBuffer.fill(rhs.counts.size - counts.size)(new Int2DoubleRBTreeMap())
+        counts ++= ListBuffer.fill(rhs.counts.size - counts.size)(new Word2Double())
       }
       for(i <- 0 until rhs.counts.size) {
-        val it = rhs.counts(i).int2DoubleEntrySet().iterator
-        while(it.hasNext) {
-          val entry = it.next
-          counts(i).put(entry.getIntKey(), getOrElse(counts(i), entry.getIntKey()) + entry.getDoubleValue())
+        for((word, prob) <- rhs.counts(i)) {
+          counts(i).put(word, getOrElse(counts(i), word) + prob)
         }
       }
     }
@@ -179,16 +182,32 @@ object FastAlign {
       val out = new PrintWriter(filename)
       for(i <- 0 until ttable.size) {
         val a = i
-        val cpd = ttable(i)
-        val it = cpd.int2DoubleEntrySet().iterator
-        while(it.hasNext) {
-          val entry = it.next
-          val b = entry.getIntKey()
-          val c = entry.getDoubleValue()
-          out.println("%d\t%d\t%d" format (a,b,c))
+        for((word, prob) <- ttable(i)) {
+          out.println("%d\t%d\t%f" format (a,word,prob))
         }
       }
       out.close()
+    }
+
+    override def toString = {
+      val sb = new StringBuilder()
+      var i = 0
+      for(ttrow <- ttable) {
+        sb.append("%d: " format (i))
+        i += 1
+        val it = ttrow.entrySet().iterator
+        while(it.hasNext) {
+          val entry = it.next
+          val key = entry.getKey
+          val value = entry.getValue
+          sb.append("%d -> %.4f" format (key, value))
+          if(it.hasNext) {
+            sb.append(", ")
+          }
+        }
+        sb.append("\n")
+      }
+      sb.toString
     }
   }
 
@@ -236,7 +255,7 @@ object FastAlign {
     case _ => throw new RuntimeException("Bad line: " + line)
   }
 
-  private case class ProcessLineResult(
+  case class ProcessLineResult(
     delta_tot_len_ratio : Double,
     delta_denom : Int,
     delta_size_counts : (Int, Int),
@@ -248,7 +267,7 @@ object FastAlign {
     error : Option[String]
   )
 
-  private def process_line(line : String, align_result : AlignResult, is_reverse : Boolean, 
+  def process_line(line : String, align_result : AlignResult, is_reverse : Boolean, 
     use_null : Boolean, favor_diagonal : Boolean,
     prob_align_null : Double, prob_align_not_null : Double, 
     s2t : TTable, lc : Int, 
@@ -454,6 +473,7 @@ object FastAlign {
         } else {
           s2t.normalize()
         }
+        println(s2t.toString)
         //prob_align_null *= 0.8; // XXX
         //prob_align_null += (c0 / toks) * 0.2;
         // This seems unneccesary !

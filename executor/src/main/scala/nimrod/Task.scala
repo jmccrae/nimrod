@@ -96,7 +96,7 @@ object result {
 class Result[T] {
   private var value : Option[T] = None
   /** Get the result
-   * @throw NoSuchElementException If the task is not yet complete */
+   * @throws NoSuchElementException If the task is not yet complete */
   def apply() = value.get
   /** Complete the task */
   def set(t : T) {

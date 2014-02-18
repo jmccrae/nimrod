@@ -61,7 +61,7 @@ class Opts(args : Seq[String]) {
                     message.append(" ");
                 }
             }
-            message.append("\"" + ln);
+            message.append(ln);
             for (argObj <- argObjs) {
                 message.append("\t  * " + (if(argObj.name == null) { argObj.flag } else { argObj.name }) + ": " + argObj.description + ln);
             }
@@ -181,6 +181,31 @@ class Opts(args : Seq[String]) {
             }
             return FileArtifact(defaultValue);
         }
+    }
+
+    /**
+     * Return a required argument that is a directory
+     * @param name The symbolic name for this argument
+     * @param description The description of this argument
+     */
+    def directory(name : String, description : String) : File = {
+      val arg = new Argument(name, null, description, false);
+      argObjs.add(arg);
+      if (_args.isEmpty()) {
+        arg.message = "Too few arguments: expected " + name;
+        succeeded = false;
+        return null;
+      } else {
+        val file = new File(_args.get(0));
+        if (requireFilesExist && (!file.exists() || !file.isDirectory())) {
+          arg.message = "Cannot access [" + file.getPath() + "] for " + name;
+          succeeded = false;
+          _args.remove(0);
+          return null;
+        }
+        _args.remove(0);
+        return file;
+      }
     }
 
     /**

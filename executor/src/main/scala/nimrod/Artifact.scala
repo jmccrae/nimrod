@@ -42,7 +42,8 @@ case class FileArtifact(file : File) extends Artifact {
    * Open this file as a streamable
    * @throws ArtifactException If the file cannot be read
    */
-  def lines(monitor : ProgressMonitor = NullProgressMonitor) : Streamable[Int, String] = Streamable.enumerated(asSource.getLines, monitor)
+  def lines(monitor : ProgressMonitor = NullProgressMonitor) : Streamable[Int, String] = Streamable.enumeratedIter(asSource.getLines,
+    monitor=monitor)
 
   /**
    * Mark this artifact as temporary (delete on exit)

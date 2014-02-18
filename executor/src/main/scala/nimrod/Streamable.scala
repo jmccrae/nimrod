@@ -186,9 +186,11 @@ object Streamable {
   /**
    * Create a streamable whose keys are simply the element (line) number
    */
-  def enumerated[V](seq : Iterable[V], monitor : ProgressMonitor = NullProgressMonitor) = new streams.SeqStreamable(seq.toString, (Stream.from(1) zip
+  def enumerated[V](seq : Iterable[V], from : Int = 1, monitor : ProgressMonitor = NullProgressMonitor) = new
+  streams.SeqStreamable(seq.toString, (Stream.from(from) zip
     seq).iterator, monitor)
-  def enumerated[V](seq : => Iterator[V], monitor : ProgressMonitor) = new streams.SeqStreamable(seq.toString, Stream.from(1).iterator
+  def enumeratedIter[V](seq : => Iterator[V], from : Int = 1, monitor : ProgressMonitor = NullProgressMonitor) = new streams.SeqStreamable(seq.toString,
+    Stream.from(from).iterator
     zip seq, monitor)
 }
 
